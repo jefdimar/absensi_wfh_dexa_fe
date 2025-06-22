@@ -7,11 +7,19 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+      '@': path.resolve(__dirname, './src')
+    }
   },
   server: {
     port: 3000,
-    host: true
+    open: true, // Automatically open browser
+    host: true, // Allow external connections
+    hmr: {
+      overlay: true // Show error overlay
+    }
+  },
+  // Enable hot reload for all file types
+  optimizeDeps: {
+    include: ['react', 'react-dom']
   }
 })
