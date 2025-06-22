@@ -9,9 +9,6 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 // Import custom styles
 import "./styles/dashboard.css";
 
-// Import dropdown utility
-import "./utils/dropdown.js";
-
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />

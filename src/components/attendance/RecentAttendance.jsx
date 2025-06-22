@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useAttendance } from "../../contexts/AttendanceContext";
+import { useAttendance } from "../../contexts/AttendanceContext"; // Changed from contexts to match other components
 
 const RecentAttendance = () => {
   const {
@@ -14,17 +14,12 @@ const RecentAttendance = () => {
 
   // Initialize data only once
   useEffect(() => {
-    if (!hasInitialized && attendanceRecords.length === 0 && !isLoading) {
+    if (!hasInitialized && !isLoading) {
       console.log("📅 Initializing recent attendance...");
       fetchAttendanceRecords();
       setHasInitialized(true);
     }
-  }, [
-    hasInitialized,
-    attendanceRecords.length,
-    isLoading,
-    fetchAttendanceRecords,
-  ]);
+  }, [hasInitialized, isLoading, fetchAttendanceRecords]);
 
   // Manual refresh handler
   const handleRefresh = useCallback(() => {
@@ -101,6 +96,7 @@ const RecentAttendance = () => {
     try {
       const date = new Date(timestamp);
       return date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
         minute: "2-digit",
         hour12: true,
       });
@@ -178,12 +174,15 @@ const RecentAttendance = () => {
 
   return (
     <div className="card shadow-sm">
-      <div className="card-header bg-info text-white">
+      <div className="card-header bg-info text-white uniform-header">
         <div className="d-flex justify-content-between align-items-center">
-          <h5 className="card-title mb-0">
-            <i className="bi bi-clock-history me-2"></i>
-            Recent Attendance
-          </h5>
+          <div>
+            <h5 className="card-title mb-0">
+              <i className="bi bi-clock-history me-2"></i>
+              Recent Attendance
+            </h5>
+            <small className="opacity-75 d-block mt-1">Last 7 days</small>
+          </div>
           <button
             className="btn btn-outline-light btn-sm"
             onClick={handleRefresh}

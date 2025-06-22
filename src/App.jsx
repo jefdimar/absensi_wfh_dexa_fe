@@ -1,10 +1,5 @@
 import React from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 // Context Providers
@@ -20,8 +15,13 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import DashboardPage from "./pages/employee/DashboardPage";
 
-// Constants
-import { ROUTES } from "./constants";
+// Utils
+import "./utils/apiTest"; // Import to add testApiEndpoints to window
+
+// Styles
+import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap-icons/font/bootstrap-icons.css";
+import "./styles/dashboard.css"; // Add this line
 
 function App() {
   return (
@@ -29,6 +29,54 @@ function App() {
       <AuthProvider>
         <Router>
           <div className="App">
+            <Routes>
+              {/* Public Routes */}
+              <Route
+                path="/login"
+                element={
+                  <PublicRoute>
+                    <Login />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <PublicRoute>
+                    <Register />
+                  </PublicRoute>
+                }
+              />
+
+              {/* Protected Routes */}
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Catch all route */}
+              <Route
+                path="*"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+
             {/* Toast Notifications */}
             <Toaster
               position="top-right"
@@ -40,63 +88,24 @@ function App() {
                 },
                 success: {
                   duration: 3000,
-                  theme: {
-                    primary: "green",
-                    secondary: "black",
+                  iconTheme: {
+                    primary: "#4aed88",
                   },
                 },
                 error: {
                   duration: 5000,
-                  theme: {
-                    primary: "red",
-                    secondary: "black",
+                  iconTheme: {
+                    primary: "#ff6b6b",
+                  },
+                },
+                loading: {
+                  duration: 2000,
+                  iconTheme: {
+                    primary: "#4f46e5",
                   },
                 },
               }}
             />
-
-            {/* Routes */}
-            <Routes>
-              {/* Public Routes */}
-              <Route
-                path={ROUTES.LOGIN}
-                element={
-                  <PublicRoute>
-                    <Login />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path={ROUTES.REGISTER}
-                element={
-                  <PublicRoute>
-                    <Register />
-                  </PublicRoute>
-                }
-              />
-
-              {/* Protected Routes */}
-              <Route
-                path={ROUTES.DASHBOARD}
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Default redirect */}
-              <Route
-                path="/"
-                element={<Navigate to={ROUTES.DASHBOARD} replace />}
-              />
-
-              {/* Catch all route */}
-              <Route
-                path="*"
-                element={<Navigate to={ROUTES.DASHBOARD} replace />}
-              />
-            </Routes>
           </div>
         </Router>
       </AuthProvider>

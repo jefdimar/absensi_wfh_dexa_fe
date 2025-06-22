@@ -34,10 +34,8 @@ export const ROUTES = {
 
 // Storage Keys
 export const STORAGE_KEYS = {
-  AUTH_TOKEN: 'auth_token',
+  AUTH_TOKEN: 'auth_token', // Changed from 'authToken' to match your localStorage
   USER_DATA: 'user_data',
-  THEME: 'theme_preference',
-  LANGUAGE: 'language_preference',
 };
 
 // App Configuration

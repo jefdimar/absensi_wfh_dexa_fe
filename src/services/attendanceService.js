@@ -5,7 +5,7 @@ import { config } from '../config/env';
 // Create axios instance using the working API Gateway
 const attendanceApi = axios.create({
   baseURL: config.API_BASE_URL, // http://localhost
-  timeout: 15000, // Increased timeout for monthly stats
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -46,7 +46,7 @@ attendanceApi.interceptors.response.use(
 );
 
 export const attendanceService = {
-  // Check in
+  // Check in - IMPROVED error handling
   checkIn: async () => {
     try {
       const response = await attendanceApi.post('/attendance/check-in');
@@ -62,23 +62,35 @@ export const attendanceService = {
       console.error('Check-in API error:', error);
 
       let errorMessage = 'Check-in failed. Please try again.';
+      let needsRefresh = false;
 
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+
+        // Check if this is a state mismatch that requires refresh
+        if (errorMessage.includes('already checked in') ||
+          errorMessage.includes('duplicate') ||
+          errorMessage.includes('status mismatch')) {
+          needsRefresh = true;
+        }
       } else if (error.response?.status === 400 || error.response?.status === 409) {
         errorMessage = 'You have already checked in today.';
+        needsRefresh = true;
       } else if (error.response?.status === 401) {
         errorMessage = 'Please login to check in.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server temporarily unavailable. Please try again in a moment.';
       }
 
       return {
         success: false,
         error: errorMessage,
+        needsRefresh: needsRefresh,
       };
     }
   },
 
-  // Check out
+  // Check out - IMPROVED error handling
   checkOut: async () => {
     try {
       const response = await attendanceApi.post('/attendance/check-out');
@@ -94,33 +106,50 @@ export const attendanceService = {
       console.error('Check-out API error:', error);
 
       let errorMessage = 'Check-out failed. Please try again.';
+      let needsRefresh = false;
 
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+
+        // Check if this is a state mismatch that requires refresh
+        if (errorMessage.includes('already checked out') ||
+          errorMessage.includes('not checked in') ||
+          errorMessage.includes('status mismatch')) {
+          needsRefresh = true;
+        }
       } else if (error.response?.status === 400) {
         errorMessage = 'You need to check in first or have already checked out.';
+        needsRefresh = true;
       } else if (error.response?.status === 409) {
         errorMessage = 'You have already checked out today.';
+        needsRefresh = true;
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server temporarily unavailable. Please try again in a moment.';
       }
 
       return {
         success: false,
         error: errorMessage,
+        needsRefresh: needsRefresh,
       };
     }
   },
 
-  // Get daily summary - Enhanced with better error handling
+  // Get daily summary - IMPROVED with better fallback strategies
   getDailySummary: async (date = null) => {
+    console.log('📊 Requesting daily summary...');
+
+    // Strategy 1: Try the summary endpoint first
     try {
       let url = '/attendance/summary/daily';
       if (date) {
         url += `?date=${date}`;
       }
 
+      console.log('📊 Trying summary endpoint:', url);
       const response = await attendanceApi.get(url);
-      const attendanceData = response.data;
 
+      const attendanceData = response.data;
       if (attendanceData && attendanceData.employeeId) {
         return {
           success: true,
@@ -131,33 +160,97 @@ export const attendanceService = {
             totalHours: attendanceData.workingHours ? `${attendanceData.workingHours}:00` : null,
             status: attendanceData.status,
             employeeId: attendanceData.employeeId,
+            _source: 'api-summary'
           },
-        };
-      } else {
-        return {
-          success: true,
-          data: null,
         };
       }
     } catch (error) {
-      console.error('Get daily summary API error:', error);
+      console.log('📊 Summary endpoint failed, trying fallback strategy...');
 
+      // Strategy 2: Try to get today's data from attendance records
+      try {
+        console.log('📊 Fallback: Getting daily summary from attendance records...');
+        const recordsResponse = await attendanceApi.get('/attendance/my-records');
+
+        if (recordsResponse.data && Array.isArray(recordsResponse.data)) {
+          const records = recordsResponse.data;
+
+          // Filter today's records
+          const targetDate = date ? new Date(date) : new Date();
+          const todayString = targetDate.toDateString();
+
+          const todayRecords = records.filter(record => {
+            const recordDate = new Date(record.timestamp);
+            return recordDate.toDateString() === todayString;
+          });
+
+          if (todayRecords.length > 0) {
+            // Find check-in and check-out records
+            const checkInRecord = todayRecords.find(r => r.status === 'check-in');
+            const checkOutRecord = todayRecords.find(r => r.status === 'check-out');
+
+            // Calculate working hours if both records exist
+            let totalHours = null;
+            if (checkInRecord && checkOutRecord) {
+              const checkInTime = new Date(checkInRecord.timestamp);
+              const checkOutTime = new Date(checkOutRecord.timestamp);
+              const diffMs = checkOutTime - checkInTime;
+              const diffHours = diffMs / (1000 * 60 * 60);
+              const hours = Math.floor(diffHours);
+              const minutes = Math.round((diffHours - hours) * 60);
+              totalHours = `${hours}:${minutes.toString().padStart(2, '0')}`;
+            }
+
+            return {
+              success: true,
+              data: {
+                date: targetDate.toISOString().split('T')[0],
+                checkInTime: checkInRecord?.timestamp || null,
+                checkOutTime: checkOutRecord?.timestamp || null,
+                totalHours: totalHours,
+                status: checkOutRecord ? 'completed' : (checkInRecord ? 'in-progress' : 'not-started'),
+                employeeId: checkInRecord?.employeeId || checkOutRecord?.employeeId,
+                _source: 'fallback-records'
+              },
+            };
+          }
+        }
+      } catch (fallbackError) {
+        console.log('📊 Fallback strategy also failed:', fallbackError);
+      }
+
+      // Handle the original error
       if (error.response?.status === 404) {
+        console.log('📊 No attendance record found for today');
         return {
           success: true,
           data: null,
         };
+      } else if (error.response?.status >= 500) {
+        console.error('📊 Server error getting daily summary:', error.response?.data);
+        return {
+          success: true, // Don't fail the app
+          data: null,
+          warning: 'Daily summary temporarily unavailable due to server maintenance',
+        };
+      } else if (error.response?.status === 401) {
+        return {
+          success: false,
+          error: 'Authentication required. Please login again.',
+          data: null,
+        };
       }
-
-      return {
-        success: false,
-        error: 'Failed to fetch daily summary.',
-        data: null,
-      };
     }
+
+    // Final fallback - return null data
+    return {
+      success: true,
+      data: null,
+      warning: 'Unable to load daily summary at this time',
+    };
   },
 
-  // Get attendance records - Enhanced with better filtering
+  // Get attendance records - IMPROVED error handling
   getAttendanceRecords: async (startDate = null, endDate = null) => {
     try {
       let url = '/attendance/my-records';
@@ -171,22 +264,9 @@ export const attendanceService = {
 
       if (Array.isArray(recordsData)) {
         // Sort records by timestamp (newest first)
-        let sortedRecords = recordsData.sort((a, b) =>
+        const sortedRecords = recordsData.sort((a, b) =>
           new Date(b.timestamp) - new Date(a.timestamp)
         );
-
-        // Apply date filtering if provided
-        if (startDate || endDate) {
-          sortedRecords = sortedRecords.filter(record => {
-            const recordDate = new Date(record.timestamp);
-            const start = startDate ? new Date(startDate) : null;
-            const end = endDate ? new Date(endDate) : null;
-
-            if (start && recordDate < start) return false;
-            if (end && recordDate > end) return false;
-            return true;
-          });
-        }
 
         console.log('📅 Processed records:', sortedRecords.length);
 
@@ -205,34 +285,44 @@ export const attendanceService = {
     } catch (error) {
       console.error('Get attendance records API error:', error);
 
+      // Handle different error scenarios
       if (error.response?.status === 404) {
         return {
           success: true,
           data: [],
         };
+      } else if (error.response?.status >= 500) {
+        console.error('📅 Server error getting attendance records:', error.response?.data);
+        return {
+          success: true, // Don't fail the app
+          data: [],
+          warning: 'Unable to load attendance records due to server error',
+        };
+      } else if (error.response?.status === 401) {
+        return {
+          success: false,
+          error: 'Authentication required. Please login again.',
+          data: [],
+        };
       }
 
+      // For other errors, return empty data but don't fail
       return {
-        success: false,
-        error: 'Failed to fetch attendance records.',
+        success: true, // Don't fail the app
         data: [],
+        warning: 'Unable to load attendance records at this time',
       };
     }
   },
 
-  // Enhanced get monthly stats with better data processing
+  // Get monthly stats - IMPROVED error handling
   getMonthlyStats: async (year = null, month = null) => {
     try {
       let url = '/attendance/stats/monthly';
       const params = new URLSearchParams();
 
-      // Use current month/year if not provided
-      const currentDate = new Date();
-      const targetYear = year || currentDate.getFullYear();
-      const targetMonth = month || (currentDate.getMonth() + 1);
-
-      params.append('year', targetYear);
-      params.append('month', targetMonth);
+      if (year) params.append('year', year);
+      if (month) params.append('month', month);
 
       if (params.toString()) {
         url += `?${params.toString()}`;
@@ -246,22 +336,15 @@ export const attendanceService = {
       const apiData = response.data;
 
       if (apiData && typeof apiData === 'object') {
-        // Enhanced calculations
-        const presentDays = apiData.presentDays || 0;
-        const absentDays = apiData.absentDays || 0;
-        const incompleteDays = apiData.incompleteDays || 0;
-        const totalDaysInMonth = apiData.totalDays || 0;
-        const averageWorkingHours = apiData.averageWorkingHours || 0;
-
         // Calculate total working hours
-        const totalWorkingHours = averageWorkingHours * presentDays;
+        const totalWorkingHours = (apiData.averageWorkingHours || 0) * (apiData.presentDays || 0);
 
         // Calculate attendance rate
-        const attendanceRate = totalDaysInMonth > 0
-          ? Math.round((presentDays / totalDaysInMonth) * 100)
+        const attendanceRate = apiData.totalDays > 0
+          ? Math.round((apiData.presentDays / apiData.totalDays) * 100)
           : 0;
 
-        // Enhanced hour formatting
+        // Format hours
         const formatHours = (hours) => {
           if (!hours || hours === 0) return '0:00';
           const wholeHours = Math.floor(hours);
@@ -269,65 +352,18 @@ export const attendanceService = {
           return `${wholeHours}:${minutes.toString().padStart(2, '0')}`;
         };
 
-        // Calculate efficiency metrics
-        const expectedHoursPerDay = 8;
-        const expectedTotalHours = presentDays * expectedHoursPerDay;
-        const hoursEfficiency = expectedTotalHours > 0
-          ? Math.round((totalWorkingHours / expectedTotalHours) * 100)
-          : 0;
-
-        // Determine performance level
-        const getPerformanceLevel = (rate) => {
-          if (rate >= 95) return { level: 'Excellent', color: 'success', icon: 'bi-trophy' };
-          if (rate >= 85) return { level: 'Good', color: 'info', icon: 'bi-star' };
-          if (rate >= 75) return { level: 'Average', color: 'warning', icon: 'bi-dash-circle' };
-          return { level: 'Needs Improvement', color: 'danger', icon: 'bi-exclamation-triangle' };
-        };
-
-        const performance = getPerformanceLevel(attendanceRate);
-
         // Transform to our expected format
         const normalizedStats = {
-          // Basic stats
-          totalDays: presentDays,
-          presentDays,
-          absentDays,
-          incompleteDays,
-          totalDaysInMonth,
-          workingDaysInMonth: totalDaysInMonth,
-
-          // Hours
+          totalDays: apiData.presentDays || 0,
           totalHours: formatHours(totalWorkingHours),
-          averageHours: formatHours(averageWorkingHours),
-          expectedTotalHours: formatHours(expectedTotalHours),
-
-          // Rates and percentages
+          averageHours: formatHours(apiData.averageWorkingHours || 0),
           attendanceRate: `${attendanceRate}%`,
-          hoursEfficiency: `${hoursEfficiency}%`,
-
-          // Performance metrics
-          performance,
-
-          // Additional metrics
-          workingDaysCompleted: presentDays,
-          workingDaysRemaining: Math.max(0, totalDaysInMonth - presentDays - absentDays - incompleteDays),
-          completionRate: totalDaysInMonth > 0 ? Math.round(((presentDays + absentDays + incompleteDays) / totalDaysInMonth) * 100) : 0,
-
-          // Trends (if we have historical data)
-          trends: {
-            attendanceImproving: attendanceRate >= 80,
-            hoursConsistent: hoursEfficiency >= 80 && hoursEfficiency <= 120,
-            onTrack: attendanceRate >= 85 && hoursEfficiency >= 80,
-          },
-
-          // Raw data for debugging
+          presentDays: apiData.presentDays || 0,
+          absentDays: apiData.absentDays || 0,
+          incompleteDays: apiData.incompleteDays || 0,
+          totalDaysInMonth: apiData.totalDays || 0,
+          workingDaysInMonth: apiData.totalDays || 0,
           _raw: apiData,
-          _calculated: {
-            totalWorkingHours,
-            expectedTotalHours,
-            hoursEfficiency,
-            attendanceRate,
-          }
         };
 
         console.log('📊 Normalized stats:', normalizedStats);
@@ -337,282 +373,68 @@ export const attendanceService = {
           data: normalizedStats,
         };
       } else {
-        // If no data or unexpected format, return default values
-        const defaultStats = {
-          totalDays: 0,
-          presentDays: 0,
-          absentDays: 0,
-          incompleteDays: 0,
-          totalDaysInMonth: new Date(targetYear, targetMonth, 0).getDate(),
-          workingDaysInMonth: new Date(targetYear, targetMonth, 0).getDate(),
-
-          // Hours
-          totalHours: '0:00',
-          averageHours: '0:00',
-          expectedTotalHours: '0:00',
-
-          // Rates and percentages
-          attendanceRate: '0%',
-          hoursEfficiency: '0%',
-
-          // Performance metrics
-          performance: { level: 'No Data', color: 'secondary', icon: 'bi-question-circle' },
-
-          // Additional metrics
-          workingDaysCompleted: 0,
-          workingDaysRemaining: new Date(targetYear, targetMonth, 0).getDate(),
-          completionRate: 0,
-
-          // Trends
-          trends: {
-            attendanceImproving: false,
-            hoursConsistent: false,
-            onTrack: false,
-          },
-
-          // Raw data
-          _raw: {},
-          _calculated: {
-            totalWorkingHours: 0,
-            expectedTotalHours: 0,
-            hoursEfficiency: 0,
-            attendanceRate: 0,
-          }
-        };
-
+        // Return default values for no data
         return {
           success: true,
-          data: defaultStats,
+          data: {
+            totalDays: 0,
+            totalHours: '0:00',
+            averageHours: '0:00',
+            attendanceRate: '0%',
+            presentDays: 0,
+            absentDays: 0,
+            incompleteDays: 0,
+            totalDaysInMonth: 0,
+            workingDaysInMonth: 0,
+          },
         };
       }
     } catch (error) {
       console.error('Get monthly stats API error:', error);
 
-      // If 404, it means no data for that month
-      if (error.response?.status === 404) {
-        const targetYear = year || new Date().getFullYear();
-        const targetMonth = month || (new Date().getMonth() + 1);
+      // Default stats object
+      const defaultStats = {
+        totalDays: 0,
+        totalHours: '0:00',
+        averageHours: '0:00',
+        attendanceRate: '0%',
+        presentDays: 0,
+        absentDays: 0,
+        incompleteDays: 0,
+        totalDaysInMonth: 0,
+        workingDaysInMonth: 0,
+      };
 
+      // Handle different error scenarios
+      if (error.response?.status === 404) {
+        // No data for that month - this is normal
         return {
           success: true,
-          data: {
-            totalDays: 0,
-            presentDays: 0,
-            absentDays: 0,
-            incompleteDays: 0,
-            totalDaysInMonth: new Date(targetYear, targetMonth, 0).getDate(),
-            workingDaysInMonth: new Date(targetYear, targetMonth, 0).getDate(),
-            totalHours: '0:00',
-            averageHours: '0:00',
-            expectedTotalHours: '0:00',
-            attendanceRate: '0%',
-            hoursEfficiency: '0%',
-            performance: { level: 'No Data', color: 'secondary', icon: 'bi-question-circle' },
-            workingDaysCompleted: 0,
-            workingDaysRemaining: new Date(targetYear, targetMonth, 0).getDate(),
-            completionRate: 0,
-            trends: {
-              attendanceImproving: false,
-              hoursConsistent: false,
-              onTrack: false,
-            },
-            _raw: {},
-            _calculated: {
-              totalWorkingHours: 0,
-              expectedTotalHours: 0,
-              hoursEfficiency: 0,
-              attendanceRate: 0,
-            }
-          },
+          data: defaultStats,
         };
-      }
-
-      return {
-        success: false,
-        error: `Failed to fetch monthly statistics for ${month}/${year}.`,
-        data: {
-          totalDays: 0,
-          presentDays: 0,
-          absentDays: 0,
-          incompleteDays: 0,
-          totalDaysInMonth: 0,
-          workingDaysInMonth: 0,
-          totalHours: '0:00',
-          averageHours: '0:00',
-          expectedTotalHours: '0:00',
-          attendanceRate: '0%',
-          hoursEfficiency: '0%',
-          performance: { level: 'Error', color: 'danger', icon: 'bi-exclamation-triangle' },
-          workingDaysCompleted: 0,
-          workingDaysRemaining: 0,
-          completionRate: 0,
-          trends: {
-            attendanceImproving: false,
-            hoursConsistent: false,
-            onTrack: false,
-          },
-          _raw: {},
-          _calculated: {
-            totalWorkingHours: 0,
-            expectedTotalHours: 0,
-            hoursEfficiency: 0,
-            attendanceRate: 0,
-          }
-        },
-      };
-    }
-  },
-
-  // Get year-to-date statistics
-  getYearToDateStats: async (year = null) => {
-    try {
-      const targetYear = year || new Date().getFullYear();
-      const currentMonth = new Date().getMonth() + 1;
-
-      console.log('📊 Calculating year-to-date stats for:', targetYear);
-
-      // Fetch stats for each month up to current month
-      const monthlyPromises = [];
-      for (let month = 1; month <= currentMonth; month++) {
-        monthlyPromises.push(
-          attendanceService.getMonthlyStats(targetYear, month)
-        );
-      }
-
-      const monthlyResults = await Promise.all(monthlyPromises);
-
-      // Aggregate the results
-      let totalPresentDays = 0;
-      let totalAbsentDays = 0;
-      let totalIncompleteDays = 0;
-      let totalWorkingHours = 0;
-      let totalExpectedHours = 0;
-      let monthsWithData = 0;
-
-      monthlyResults.forEach(result => {
-        if (result.success && result.data) {
-          const data = result.data;
-          totalPresentDays += data.presentDays || 0;
-          totalAbsentDays += data.absentDays || 0;
-          totalIncompleteDays += data.incompleteDays || 0;
-
-          // Parse hours
-          const totalHours = parseFloat(data.totalHours?.replace(':', '.') || '0');
-          const expectedHours = parseFloat(data.expectedTotalHours?.replace(':', '.') || '0');
-
-          totalWorkingHours += totalHours;
-          totalExpectedHours += expectedHours;
-
-          if (data.presentDays > 0) monthsWithData++;
-        }
-      });
-
-      const formatHours = (hours) => {
-        if (!hours || hours === 0) return '0:00';
-        const wholeHours = Math.floor(hours);
-        const minutes = Math.round((hours - wholeHours) * 60);
-        return `${wholeHours}:${minutes.toString().padStart(2, '0')}`;
-      };
-
-      const totalDays = totalPresentDays + totalAbsentDays + totalIncompleteDays;
-      const attendanceRate = totalDays > 0 ? Math.round((totalPresentDays / totalDays) * 100) : 0;
-      const hoursEfficiency = totalExpectedHours > 0 ? Math.round((totalWorkingHours / totalExpectedHours) * 100) : 0;
-
-      return {
-        success: true,
-        data: {
-          year: targetYear,
-          monthsCompleted: currentMonth,
-          monthsWithData,
-          totalPresentDays,
-          totalAbsentDays,
-          totalIncompleteDays,
-          totalDays,
-          totalHours: formatHours(totalWorkingHours),
-          expectedTotalHours: formatHours(totalExpectedHours),
-          averageHoursPerDay: totalPresentDays > 0 ? formatHours(totalWorkingHours / totalPresentDays) : '0:00',
-          attendanceRate: `${attendanceRate}%`,
-          hoursEfficiency: `${hoursEfficiency}%`,
-          monthlyBreakdown: monthlyResults.map((result, index) => ({
-            month: index + 1,
-            monthName: new Date(targetYear, index).toLocaleDateString('en-US', { month: 'long' }),
-            ...result.data
-          }))
-        }
-      };
-
-    } catch (error) {
-      console.error('Get year-to-date stats error:', error);
-      return {
-        success: false,
-        error: 'Failed to calculate year-to-date statistics.',
-        data: null
-      };
-    }
-  },
-
-  // Get attendance comparison between months
-  getMonthComparison: async (year1, month1, year2, month2) => {
-    try {
-      console.log('📊 Comparing months:', `${month1}/${year1}`, 'vs', `${month2}/${year2}`);
-
-      const [result1, result2] = await Promise.all([
-        attendanceService.getMonthlyStats(year1, month1),
-        attendanceService.getMonthlyStats(year2, month2)
-      ]);
-
-      if (!result1.success || !result2.success) {
+      } else if (error.response?.status >= 500) {
+        // Server error - log it but don't fail the app
+        console.error('📊 Server error getting monthly stats:', error.response?.data);
+        return {
+          success: true, // Don't fail the app
+          data: defaultStats,
+          warning: 'Monthly statistics temporarily unavailable due to server maintenance',
+        };
+      } else if (error.response?.status === 401) {
+        // Authentication error
         return {
           success: false,
-          error: 'Failed to fetch comparison data.',
-          data: null
+          error: 'Authentication required. Please login again.',
+          data: defaultStats,
         };
       }
 
-      const data1 = result1.data;
-      const data2 = result2.data;
-
-      // Calculate differences
-      const presentDaysDiff = (data1.presentDays || 0) - (data2.presentDays || 0);
-      const attendanceRateDiff = parseInt(data1.attendanceRate || '0') - parseInt(data2.attendanceRate || '0');
-      const totalHoursDiff = parseFloat(data1.totalHours?.replace(':', '.') || '0') - parseFloat(data2.totalHours?.replace(':', '.') || '0');
-
+      // For other errors, return default data but don't fail
       return {
-        success: true,
-        data: {
-          period1: {
-            year: year1,
-            month: month1,
-            monthName: new Date(year1, month1 - 1).toLocaleDateString('en-US', { month: 'long' }),
-            ...data1
-          },
-          period2: {
-            year: year2,
-            month: month2,
-            monthName: new Date(year2, month2 - 1).toLocaleDateString('en-US', { month: 'long' }),
-            ...data2
-          },
-          comparison: {
-            presentDaysDiff,
-            attendanceRateDiff,
-            totalHoursDiff: Math.round(totalHoursDiff * 100) / 100,
-            improvement: {
-              attendance: attendanceRateDiff > 0,
-              hours: totalHoursDiff > 0,
-              consistency: Math.abs(attendanceRateDiff) <= 5 // Within 5% is considered consistent
-            }
-          }
-        }
-      };
-
-    } catch (error) {
-      console.error('Get month comparison error:', error);
-      return {
-        success: false,
-        error: 'Failed to compare months.',
-        data: null
+        success: true, // Don't fail the app
+        data: defaultStats,
+        warning: 'Unable to load monthly statistics at this time',
       };
     }
-  }
+  },
 };
-
