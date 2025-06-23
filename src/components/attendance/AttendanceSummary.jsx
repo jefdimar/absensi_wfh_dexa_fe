@@ -1,114 +1,118 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useAttendance } from "../../contexts/AttendanceContext";
 
 const AttendanceSummary = () => {
-  const { monthlyStats, fetchMonthlyStats, isLoading } = useAttendance();
-
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const {
+    monthlyStats,
+    fetchMonthlyStats,
+    isLoading,
+    warnings,
+    clearWarnings,
+  } = useAttendance();
 
   useEffect(() => {
-    const loadMonthlyStats = async () => {
-      setIsLoadingStats(true);
-
-      try {
-        const currentDate = new Date();
-        await fetchMonthlyStats(
-          currentDate.getFullYear(),
-          currentDate.getMonth() + 1
-        );
-      } catch (error) {
-        // Handle error silently
-      } finally {
-        setIsLoadingStats(false);
-      }
-    };
-
-    loadMonthlyStats();
+    const currentDate = new Date();
+    fetchMonthlyStats(currentDate.getFullYear(), currentDate.getMonth() + 1);
   }, [fetchMonthlyStats]);
 
-  const currentMonth = new Date().toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-
-  if (isLoadingStats && !monthlyStats) {
+  if (isLoading && !monthlyStats) {
     return (
       <div className="card shadow-sm h-100">
-        <div className="card-header bg-warning text-white">
-          <h5 className="card-title mb-0">
-            <i className="bi bi-calendar-month me-2"></i>
-            Monthly Summary
-          </h5>
-          <small className="opacity-75 d-block mt-1">{currentMonth}</small>
-        </div>
         <div className="card-body text-center d-flex align-items-center justify-content-center">
           <div>
-            <div className="spinner-border text-warning" role="status">
+            <div className="spinner-border" role="status">
               <span className="visually-hidden">Loading...</span>
             </div>
-            <p className="mt-2 text-muted">Loading monthly summary...</p>
+            <p className="mt-2 text-muted small">Loading monthly summary...</p>
           </div>
         </div>
       </div>
     );
   }
 
+  const currentMonth = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <div className="card shadow-sm h-100">
-      <div className="card-header bg-warning text-white">
+      <div className="card-header bg-warning text-white uniform-header">
         <h5 className="card-title mb-0">
           <i className="bi bi-calendar-month me-2"></i>
-          Monthly Summary
+          <span className="d-none d-sm-inline">Monthly Summary</span>
+          <span className="d-sm-none">Monthly</span>
         </h5>
-        <small className="opacity-75 d-block mt-1">{currentMonth}</small>
+        <small className="opacity-75 d-block mt-1">
+          <span className="d-none d-sm-inline">{currentMonth}</span>
+          <span className="d-sm-none">
+            {new Date().toLocaleDateString("en-US", {
+              month: "short",
+              year: "2-digit",
+            })}
+          </span>
+        </small>
       </div>
 
-      <div className="card-body d-flex flex-column">
+      <div className="card-body d-flex flex-column card-content-spacing">
         {/* Main Stats Grid */}
-        <div className="row g-3 mb-4">
+        <div className="row g-2 g-md-3 mb-responsive stats-grid">
           <div className="col-6">
-            <div className="text-center p-3 bg-light rounded">
+            <div className="text-center p-2 p-md-3 bg-light rounded">
               <div className="fs-4 fw-bold text-primary">
                 {monthlyStats?.totalDays || 0}
               </div>
-              <small className="text-muted">Days Worked</small>
+              <small className="text-muted">
+                <span className="d-none d-sm-inline">Days Worked</span>
+                <span className="d-sm-none">Days</span>
+              </small>
             </div>
           </div>
 
           <div className="col-6">
-            <div className="text-center p-3 bg-light rounded">
+            <div className="text-center p-2 p-md-3 bg-light rounded">
               <div className="fs-4 fw-bold text-success">
                 {monthlyStats?.totalHours || "0:00"}
               </div>
-              <small className="text-muted">Total Hours</small>
+              <small className="text-muted">
+                <span className="d-none d-sm-inline">Total Hours</span>
+                <span className="d-sm-none">Hours</span>
+              </small>
             </div>
           </div>
 
           <div className="col-6">
-            <div className="text-center p-3 bg-light rounded">
+            <div className="text-center p-2 p-md-3 bg-light rounded">
               <div className="fs-4 fw-bold text-info">
                 {monthlyStats?.averageHours || "0:00"}
               </div>
-              <small className="text-muted">Avg Hours/Day</small>
+              <small className="text-muted">
+                <span className="d-none d-sm-inline">Avg Hours/Day</span>
+                <span className="d-sm-none">Avg/Day</span>
+              </small>
             </div>
           </div>
 
           <div className="col-6">
-            <div className="text-center p-3 bg-light rounded">
+            <div className="text-center p-2 p-md-3 bg-light rounded">
               <div className="fs-4 fw-bold text-warning">
                 {monthlyStats?.attendanceRate || "0%"}
               </div>
-              <small className="text-muted">Attendance Rate</small>
+              <small className="text-muted">
+                <span className="d-none d-sm-inline">Attendance Rate</span>
+                <span className="d-sm-none">Rate</span>
+              </small>
             </div>
           </div>
         </div>
 
         {/* Detailed Stats */}
         {monthlyStats && (
-          <div className="mb-4">
+          <div className="mb-responsive">
             <h6 className="text-muted mb-3">
               <i className="bi bi-bar-chart me-2"></i>
-              Detailed Breakdown
+              <span className="d-none d-sm-inline">Detailed Breakdown</span>
+              <span className="d-sm-none">Breakdown</span>
             </h6>
             <div className="row g-2">
               <div className="col-4">
@@ -132,7 +136,10 @@ const AttendanceSummary = () => {
                   <div className="fw-bold text-warning fs-5">
                     {monthlyStats.incompleteDays || 0}
                   </div>
-                  <small className="text-muted">Incomplete</small>
+                  <small className="text-muted">
+                    <span className="d-none d-sm-inline">Incomplete</span>
+                    <span className="d-sm-none">Inc.</span>
+                  </small>
                 </div>
               </div>
             </div>
@@ -141,14 +148,18 @@ const AttendanceSummary = () => {
 
         {/* Performance Indicators */}
         {monthlyStats && (
-          <div className="mb-4">
+          <div className="mb-responsive">
             <h6 className="text-muted mb-3">
               <i className="bi bi-speedometer2 me-2"></i>
-              Performance Indicators
+              <span className="d-none d-sm-inline">Performance Indicators</span>
+              <span className="d-sm-none">Performance</span>
             </h6>
             <div className="mb-2">
               <div className="d-flex justify-content-between align-items-center mb-1">
-                <small className="text-muted">Attendance Rate</small>
+                <small className="text-muted">
+                  <span className="d-none d-sm-inline">Attendance Rate</span>
+                  <span className="d-sm-none">Attendance</span>
+                </small>
                 <small className="fw-bold">
                   {monthlyStats.attendanceRate || "0%"}
                 </small>
@@ -164,7 +175,10 @@ const AttendanceSummary = () => {
             </div>
             <div className="mb-2">
               <div className="d-flex justify-content-between align-items-center mb-1">
-                <small className="text-muted">Completion Rate</small>
+                <small className="text-muted">
+                  <span className="d-none d-sm-inline">Completion Rate</span>
+                  <span className="d-sm-none">Completion</span>
+                </small>
                 <small className="fw-bold">
                   {monthlyStats.presentDays > 0
                     ? Math.round(
@@ -200,30 +214,47 @@ const AttendanceSummary = () => {
         {/* Footer Stats */}
         <div className="mt-auto">
           {monthlyStats ? (
-            <div className="bg-light rounded p-3">
+            <div className="bg-light rounded p-2 p-md-3">
               <div className="row text-center">
                 <div className="col-6">
-                  <div className="text-primary fw-bold">
+                  <div className="text-primary fw-bold responsive-text-lg">
                     {monthlyStats.totalDaysInMonth || new Date().getDate()}
                   </div>
-                  <small className="text-muted">Days in Month</small>
+                  <small className="text-muted">
+                    <span className="d-none d-sm-inline">Days in Month</span>
+                    <span className="d-sm-none">Days/Month</span>
+                  </small>
                 </div>
                 <div className="col-6">
-                  <div className="text-info fw-bold">
+                  <div className="text-info fw-bold responsive-text-lg">
                     {monthlyStats.workingDaysInMonth ||
                       monthlyStats.totalDaysInMonth ||
                       0}
                   </div>
-                  <small className="text-muted">Working Days</small>
+                  <small className="text-muted">
+                    <span className="d-none d-sm-inline">Working Days</span>
+                    <span className="d-sm-none">Work Days</span>
+                  </small>
                 </div>
               </div>
             </div>
           ) : (
             <div className="text-center py-3 text-muted">
-              <i className="bi bi-calendar-x fs-1 mb-2"></i>
-              <p>No monthly data available yet</p>
+              <i className="bi bi-calendar-x fs-1 mb-2 d-none d-md-block"></i>
+              <i className="bi bi-calendar-x fs-3 mb-2 d-md-none"></i>
+              <p className="mb-2">
+                <span className="d-none d-sm-inline">
+                  No monthly data available yet
+                </span>
+                <span className="d-sm-none">No data available</span>
+              </p>
               <small>
-                Start tracking your attendance to see monthly statistics
+                <span className="d-none d-sm-inline">
+                  Start tracking your attendance to see monthly statistics
+                </span>
+                <span className="d-sm-none">
+                  Start tracking to see statistics
+                </span>
               </small>
             </div>
           )}

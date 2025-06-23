@@ -21,6 +21,7 @@ const DashboardContent = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [hasInitialized, setHasInitialized] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
+  const [initializationError, setInitializationError] = useState(null);
 
   useEffect(() => {
     const userData = localStorage.getItem("user_data");
@@ -48,21 +49,17 @@ const DashboardContent = () => {
     if (!hasInitialized) {
       const initializeDashboard = async () => {
         try {
-          // Always try to fetch records first as they're most important
           await fetchAttendanceRecords();
 
-          // Try to fetch daily summary for today (don't pass any date parameter)
           try {
-            await fetchDailySummary(); // No date parameter = use today
+            await fetchDailySummary();
           } catch (summaryError) {
             console.warn(
               "📊 Daily summary failed during initialization:",
               summaryError
             );
-            // Daily summary will fall back to calculated values
           }
 
-          // Try to fetch monthly stats, but it's not critical
           try {
             const currentDate = new Date();
             await fetchMonthlyStats(
@@ -74,13 +71,15 @@ const DashboardContent = () => {
               "📊 Monthly stats failed during initialization:",
               statsError
             );
-            // Monthly stats will use defaults
           }
 
           setHasInitialized(true);
         } catch (error) {
           console.error("❌ Dashboard initialization failed:", error);
-          setHasInitialized(true); // Set to true anyway to prevent infinite loop
+          setInitializationError(
+            "Some features may not be available. Please try refreshing."
+          );
+          setHasInitialized(true);
         }
       };
 
@@ -94,11 +93,12 @@ const DashboardContent = () => {
   ]);
 
   const handleRefresh = useCallback(async () => {
+    setInitializationError(null);
     try {
       await fetchAttendanceRecords(null, null, true);
 
       try {
-        await fetchDailySummary(null, true); // No date = use today
+        await fetchDailySummary(null, true);
       } catch (summaryError) {
         console.warn("📊 Daily summary refresh failed:", summaryError);
       }
@@ -115,6 +115,7 @@ const DashboardContent = () => {
       }
     } catch (error) {
       console.error("❌ Manual refresh failed:", error);
+      setInitializationError("Refresh failed. Please try again.");
     }
   }, [fetchAttendanceRecords, fetchDailySummary, fetchMonthlyStats]);
 
@@ -122,7 +123,7 @@ const DashboardContent = () => {
     try {
       await logout();
     } catch (error) {
-      // Handle error silently
+      console.error("Logout error:", error);
     }
   }, [logout]);
 
@@ -153,8 +154,9 @@ const DashboardContent = () => {
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
         <div className="container-fluid">
           <a className="navbar-brand fw-bold" href="#!">
-            <i className="bi bi-clock-history me-2"></i>
-            WFH Attendance
+            <i className="bi bi-clock-history me-2 d-none d-sm-inline"></i>
+            <span className="d-none d-sm-inline">WFH Attendance</span>
+            <span className="d-sm-none">WFH</span>
           </a>
 
           <div className="navbar-nav ms-auto">
@@ -172,8 +174,8 @@ const DashboardContent = () => {
                 >
                   <i className="bi bi-person-fill"></i>
                 </div>
-                <span className="d-none d-sm-inline">
-                  {userProfile?.name || "User"}
+                <span className="d-none d-md-inline">
+                  {userProfile?.name?.split(" ")[0] || "User"}
                 </span>
               </button>
 
@@ -219,75 +221,77 @@ const DashboardContent = () => {
       </nav>
 
       {/* Main Content */}
-      <div className="container-fluid py-4">
-        {/* Welcome Section */}
-        <div className="row mb-4">
-          <div className="col-12">
-            <div className="card shadow-lg border-0 overflow-hidden">
-              <div className="card-body bg-gradient-primary text-white position-relative">
-                <div
-                  className="position-absolute top-0 end-0 opacity-10"
-                  style={{ fontSize: "8rem", right: "-2rem", top: "-2rem" }}
+      <div className="container-fluid py-3 py-md-4">
+        {/* Initialization Error Alert */}
+        {initializationError && (
+          <div className="row mb-3 mb-md-4">
+            <div className="col-12">
+              <div
+                className="alert alert-warning alert-dismissible fade show"
+                role="alert"
+              >
+                <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>Warning:</strong> {initializationError}
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-warning ms-2"
+                  onClick={handleRefresh}
+                  disabled={isLoading}
                 >
-                  <i className="bi bi-house-heart-fill"></i>
-                </div>
+                  <i
+                    className={`bi bi-arrow-clockwise me-1 ${
+                      isLoading ? "spin" : ""
+                    }`}
+                  ></i>
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setInitializationError(null)}
+                  aria-label="Close"
+                ></button>
+              </div>
+            </div>
+          </div>
+        )}
 
-                <div className="row align-items-center position-relative">
-                  <div className="col-auto">
+        {/* Welcome Section */}
+        <div className="row mb-3 mb-md-4">
+          <div className="col-12">
+            <div className="card shadow-lg border-0 welcome-section">
+              <div className="card-body text-white p-responsive">
+                <div className="row align-items-center">
+                  <div className="col-auto d-none d-md-block">
                     <div
-                      className="bg-white bg-opacity-20 backdrop-blur rounded-circle d-flex align-items-center justify-content-center shadow-lg"
-                      style={{ width: "80px", height: "80px" }}
+                      className="bg-white bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
+                      style={{ width: "60px", height: "60px" }}
                     >
-                      {userProfile?.profilePicture || userProfile?.avatar ? (
-                        <img
-                          src={userProfile.profilePicture || userProfile.avatar}
-                          alt="Profile"
-                          className="rounded-circle"
-                          style={{
-                            width: "70px",
-                            height: "70px",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        <i
-                          className="bi bi-person-fill text-white"
-                          style={{ fontSize: "2.5rem" }}
-                        ></i>
-                      )}
+                      <i className="bi bi-person-fill text-white fs-4"></i>
                     </div>
                   </div>
-
                   <div className="col">
-                    <div className="mb-3">
-                      <h1 className="fw-bold mb-2 display-6">
-                        Welcome back,{" "}
-                        {userProfile?.name?.split(" ")[0] || "User"}! 👋
-                      </h1>
-                      <p className="mb-0 opacity-90 fs-5">
-                        Ready to track your work from home attendance?
-                      </p>
-                    </div>
-
-                    <div className="d-flex flex-wrap gap-2">
-                      <span className="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill">
-                        <i className="bi bi-briefcase-fill me-2"></i>
-                        {userProfile?.position || "Employee"}
-                      </span>
-                      <span className="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill">
-                        <i className="bi bi-shield-check-fill me-2"></i>
-                        {userProfile?.role || "User"}
-                      </span>
-                      <span className="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill">
-                        <i className="bi bi-calendar-check-fill me-2"></i>
-                        Active
-                      </span>
+                    <h1 className="fw-bold mb-2 responsive-text-xl">
+                      Welcome back, {userProfile?.name?.split(" ")[0] || "User"}
+                      ! 👋
+                    </h1>
+                    <p className="mb-2 mb-md-3 opacity-90">
+                      Ready to track your work from home attendance?
+                    </p>
+                    <div className="row">
+                      <div className="col-6 col-md-auto">
+                        <div className="responsive-text-lg fw-semibold">
+                          {formatTime(currentTime)}
+                        </div>
+                        <div className="opacity-75 small">
+                          {formatDate(currentTime)}
+                        </div>
+                      </div>
                     </div>
                   </div>
-
                   <div className="col-auto">
                     <button
-                      className="btn btn-outline-light"
+                      className="btn btn-outline-light btn-sm"
                       onClick={handleRefresh}
                       disabled={isLoading}
                       title="Refresh all data"
@@ -297,6 +301,7 @@ const DashboardContent = () => {
                           isLoading ? "spin" : ""
                         }`}
                       ></i>
+                      <span className="d-none d-lg-inline ms-1">Refresh</span>
                     </button>
                   </div>
                 </div>
@@ -306,18 +311,24 @@ const DashboardContent = () => {
         </div>
 
         {/* Main Dashboard Grid */}
-        <div className="row g-4">
-          {/* Attendance Cards Row - Equal Height */}
-          <div className="col-md-6 d-flex">
-            <AttendanceCard />
-          </div>
-          <div className="col-md-6 d-flex">
-            <AttendanceSummary />
+        <div className="dashboard-grid">
+          <div className="row g-3 g-md-4 dashboard-card-row">
+            {/* Attendance Card */}
+            <div className="col-12 col-lg-6 d-flex">
+              <AttendanceCard />
+            </div>
+
+            {/* Attendance Summary */}
+            <div className="col-12 col-lg-6 d-flex">
+              <AttendanceSummary />
+            </div>
           </div>
 
           {/* Recent Attendance - Full Width */}
-          <div className="col-12">
-            <RecentAttendance />
+          <div className="row g-3 g-md-4 mt-0">
+            <div className="col-12">
+              <RecentAttendance />
+            </div>
           </div>
         </div>
       </div>
