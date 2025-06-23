@@ -1,5 +1,3 @@
-import { format, startOfMonth, endOfDay, parseISO, isValid } from 'date-fns';
-
 export const dateUtils = {
   // Safely format date for API (YYYY-MM-DD)
   formatForAPI: (date) => {
@@ -69,7 +67,25 @@ export const dateUtils = {
     }
 
     try {
-      return format(dateObj, formatType);
+      // Simple format mapping since we're not using date-fns
+      if (formatType === 'MMM dd, yyyy') {
+        return dateObj.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      } else if (formatType === 'yyyy-MM-dd') {
+        return dateObj.toISOString().split('T')[0];
+      } else if (formatType === 'dd/MM/yyyy') {
+        return dateObj.toLocaleDateString('en-GB');
+      } else {
+        // Default format
+        return dateObj.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
     } catch (error) {
       console.warn('Error formatting date:', error);
       return '';
@@ -129,12 +145,14 @@ export const dateUtils = {
 
   // Get start of current month
   getStartOfMonth: () => {
-    return startOfMonth(new Date());
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
   },
 
   // Get end of today
   getEndOfToday: () => {
-    return endOfDay(new Date());
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   },
 
   // Check if date is today
@@ -155,6 +173,81 @@ export const dateUtils = {
     }
 
     return today.toDateString() === checkDate.toDateString();
+  },
+
+  // Get start of week (Monday)
+  getStartOfWeek: (date = new Date()) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
+    return new Date(d.setDate(diff));
+  },
+
+  // Get end of week (Sunday)
+  getEndOfWeek: (date = new Date()) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? 0 : 7); // adjust when day is Sunday
+    return new Date(d.setDate(diff));
+  },
+
+  // Add days to a date
+  addDays: (date, days) => {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  },
+
+  // Subtract days from a date
+  subtractDays: (date, days) => {
+    const result = new Date(date);
+    result.setDate(result.getDate() - days);
+    return result;
+  },
+
+  // Get difference in days between two dates
+  getDaysDifference: (date1, date2) => {
+    const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
+    const firstDate = new Date(date1);
+    const secondDate = new Date(date2);
+
+    return Math.round(Math.abs((firstDate - secondDate) / oneDay));
+  },
+
+  // Check if date is weekend
+  isWeekend: (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    return day === 0 || day === 6; // Sunday or Saturday
+  },
+
+  // Get month name
+  getMonthName: (monthIndex) => {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[monthIndex] || '';
+  },
+
+  // Get day name
+  getDayName: (dayIndex) => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[dayIndex] || '';
+  },
+
+  // Parse ISO date string
+  parseISO: (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? null : date;
+  },
+
+  // Check if date is valid
+  isValid: (date) => {
+    if (!date) return false;
+    const d = new Date(date);
+    return d instanceof Date && !isNaN(d.getTime());
   }
 };
 
