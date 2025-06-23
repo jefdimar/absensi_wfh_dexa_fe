@@ -1,163 +1,97 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useProfile } from "../../hooks/useProfile";
 import { PageLoading } from "../../components/ui/Loading";
+import AppLayout from "../../components/layout/AppLayout";
 import toast from "react-hot-toast";
 
 const ProfilePage = () => {
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const {
-    updateProfile,
-    uploadPhoto,
-    updatePassword,
-    updatePhoneNumber,
+    profileData,
+    isLoading,
+    error,
     isUpdating,
     isUploading,
     isUpdatingPassword,
     isUpdatingPhone,
-    error,
+    isDeletingPhoto,
+    loadProfile,
+    updateProfile,
+    uploadPhoto,
+    deletePhoto,
+    updatePassword,
+    updatePhoneNumber,
+    getProfileCompletion,
+    clearError,
   } = useProfile();
 
-  const [userProfile, setUserProfile] = useState(null);
   const [activeTab, setActiveTab] = useState("profile");
   const [isEditing, setIsEditing] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  // Form states
   const [profileForm, setProfileForm] = useState({
     name: "",
     email: "",
     position: "",
     phoneNumber: "",
-    department: "",
-    employeeId: "",
   });
-
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
-
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
 
-  // Load user profile data
+  // Initialize profile form when profile data loads
   useEffect(() => {
-    const userData = localStorage.getItem("user_data");
-    if (userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
-        setUserProfile(parsedUser);
-        setProfileForm({
-          name: parsedUser.name || "",
-          email: parsedUser.email || "",
-          position: parsedUser.position || "",
-          phoneNumber: parsedUser.phoneNumber || "",
-          department: parsedUser.department || "",
-          employeeId: parsedUser.employeeId || "",
-        });
-      } catch (error) {
-        console.error("Error parsing user data:", error);
-        setUserProfile(user);
-      }
-    } else {
-      setUserProfile(user);
+    if (profileData) {
+      setProfileForm({
+        name: profileData.name || "",
+        email: profileData.email || "",
+        position: profileData.position || "",
+        phoneNumber: profileData.phoneNumber || "",
+      });
     }
-  }, [user]);
+  }, [profileData]);
 
-  // Close dropdown when clicking outside
+  // Load profile data on component mount
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest(".dropdown")) {
-        setDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [dropdownOpen]);
-
-  // Add backdrop for mobile dropdown
-  useEffect(() => {
-    if (dropdownOpen) {
-      const backdrop = document.createElement("div");
-      backdrop.className = "dropdown-backdrop";
-      backdrop.onclick = () => setDropdownOpen(false);
-      document.body.appendChild(backdrop);
-
-      // Prevent body scroll when dropdown is open on mobile
-      if (window.innerWidth <= 767) {
-        document.body.style.overflow = "hidden";
-      }
-
-      return () => {
-        document.body.removeChild(backdrop);
-        document.body.style.overflow = "";
-      };
+    if (!profileData) {
+      loadProfile();
     }
-  }, [dropdownOpen]);
+  }, [profileData, loadProfile]);
 
-  // Add window resize handler to close dropdown
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth > 767 && dropdownOpen) {
-        setDropdownOpen(false);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [dropdownOpen]);
-
-  const handleDropdownToggle = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDropdownOpen(!dropdownOpen);
-  };
-
-  const handleBackToDashboard = () => {
-    navigate("/dashboard");
-  };
-
-  const handleLogout = async () => {
-    setDropdownOpen(false);
-    try {
-      await logout();
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  };
-
-  const handleProfileFormChange = (e) => {
+  // Handle profile form input changes
+  const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
     setProfileForm((prev) => ({
       ...prev,
       [name]: value,
     }));
-  };
+  }, []);
 
-  const handlePasswordFormChange = (e) => {
+  // Handle password form input changes
+  const handlePasswordChange = useCallback((e) => {
     const { name, value } = e.target;
     setPasswordForm((prev) => ({
       ...prev,
       [name]: value,
     }));
-  };
+  }, []);
 
-  const handlePhotoChange = (e) => {
+  // Handle photo file selection
+  const handlePhotoChange = useCallback((e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        // 5MB limit
-        toast.error("File size must be less than 5MB");
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        toast.error("Please select a valid image file");
         return;
       }
 
-      if (!file.type.startsWith("image/")) {
-        toast.error("Please select an image file");
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image size must be less than 5MB");
         return;
       }
 
@@ -170,303 +104,536 @@ const ProfilePage = () => {
       };
       reader.readAsDataURL(file);
     }
-  };
+  }, []);
 
-  const handleProfileSubmit = async (e) => {
-    e.preventDefault();
+  // Handle profile form submission
+  const handleProfileSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
 
-    try {
-      await updateProfile(profileForm);
-      setIsEditing(false);
+      try {
+        await updateProfile(profileForm);
+        setIsEditing(false);
+      } catch (error) {
+        console.error("Profile update failed:", error);
+      }
+    },
+    [profileForm, updateProfile]
+  );
 
-      // Update local user data
-      const updatedUser = { ...userProfile, ...profileForm };
-      setUserProfile(updatedUser);
-      localStorage.setItem("user_data", JSON.stringify(updatedUser));
-    } catch (error) {
-      console.error("Profile update error:", error);
-    }
-  };
-
-  const handlePhotoSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!photoFile) {
-      toast.error("Please select a photo first");
-      return;
-    }
+  // Handle photo upload
+  const handlePhotoUpload = useCallback(async () => {
+    if (!photoFile) return;
 
     try {
-      const result = await uploadPhoto(photoFile);
-
-      // Update local user data with new photo URL
-      const updatedUser = {
-        ...userProfile,
-        profilePicture: result.photoUrl || result.url,
-      };
-      setUserProfile(updatedUser);
-      localStorage.setItem("user_data", JSON.stringify(updatedUser));
-
-      // Reset photo states
+      await uploadPhoto(photoFile);
       setPhotoFile(null);
       setPhotoPreview(null);
     } catch (error) {
-      console.error("Photo upload error:", error);
+      console.error("Photo upload failed:", error);
     }
-  };
+  }, [photoFile, uploadPhoto]);
 
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error("New passwords do not match");
-      return;
+  // Handle photo deletion
+  const handleDeletePhoto = useCallback(async () => {
+    if (window.confirm("Are you sure you want to delete your profile photo?")) {
+      try {
+        await deletePhoto();
+        setPhotoPreview(null);
+      } catch (error) {
+        console.error("Photo deletion failed:", error);
+      }
     }
+  }, [deletePhoto]);
 
-    if (passwordForm.newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters long");
-      return;
+  // Handle password change
+  const handlePasswordSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        toast.error("New passwords do not match");
+        return;
+      }
+
+      if (passwordForm.newPassword.length < 8) {
+        toast.error("Password must be at least 8 characters long");
+        return;
+      }
+
+      try {
+        await updatePassword({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        });
+
+        setPasswordForm({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+      } catch (error) {
+        console.error("Password update failed:", error);
+      }
+    },
+    [passwordForm, updatePassword]
+  );
+
+  // Handle edit toggle
+  const handleEditToggle = useCallback(() => {
+    if (isEditing) {
+      // Reset form to original values when canceling
+      if (profileData) {
+        setProfileForm({
+          name: profileData.name || "",
+          email: profileData.email || "",
+          position: profileData.position || "",
+          phoneNumber: profileData.phoneNumber || "",
+        });
+      }
     }
+    setIsEditing(!isEditing);
+  }, [isEditing, profileData]);
 
-    try {
-      await updatePassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      });
+  // Calculate profile completion percentage
+  const profileCompletion = useCallback(() => {
+    return getProfileCompletion();
+  }, [getProfileCompletion]);
 
-      // Reset form
-      setPasswordForm({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
-    } catch (error) {
-      console.error("Password update error:", error);
-    }
-  };
-
-  if (!userProfile) {
+  if (isLoading && !profileData) {
     return <PageLoading message="Loading profile..." />;
   }
 
   return (
-    <div className="min-vh-100 bg-light">
-      {/* Navigation Bar */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-        <div className="container-fluid">
-          <button
-            className="btn btn-outline-light me-3"
-            onClick={handleBackToDashboard}
-            title="Back to Dashboard"
-          >
-            <i className="bi bi-arrow-left"></i>
-            <span className="d-none d-sm-inline ms-1">Dashboard</span>
-          </button>
-
-          <a
-            className="navbar-brand fw-bold"
-            href="#!"
-            onClick={(e) => e.preventDefault()}
-          >
-            <i className="bi bi-person-circle me-2 d-none d-sm-inline"></i>
-            <span className="d-none d-sm-inline">Profile</span>
-            <span className="d-sm-none">Profile</span>
-          </a>
-
-          <div className="navbar-nav ms-auto">
-            <div className="nav-item dropdown">
-              <button
-                className="nav-link dropdown-toggle d-flex align-items-center btn btn-link text-white text-decoration-none border-0"
-                type="button"
-                onClick={handleDropdownToggle}
-                aria-expanded={dropdownOpen}
-              >
-                <div
-                  className="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center me-2"
-                  style={{ width: "32px", height: "32px" }}
-                >
-                  {userProfile?.profilePicture || userProfile?.avatar ? (
-                    <img
-                      src={userProfile.profilePicture || userProfile.avatar}
-                      alt="Profile"
-                      className="rounded-circle"
-                      style={{
-                        width: "30px",
-                        height: "30px",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    <i className="bi bi-person-fill"></i>
-                  )}
-                </div>
-                <span className="d-none d-md-inline">
-                  {userProfile?.name?.split(" ")[0] || "User"}
-                </span>
-              </button>
-
-              <ul
-                className={`dropdown-menu dropdown-menu-end shadow ${
-                  dropdownOpen ? "show" : ""
-                }`}
-                style={{ minWidth: "200px" }}
-              >
-                <li>
-                  <h6 className="dropdown-header">
-                    <i className="bi bi-person-circle me-2"></i>
-                    {userProfile?.name || "User"}
-                  </h6>
-                </li>
-                <li>
-                  <span className="dropdown-item-text small text-muted">
-                    <i className="bi bi-envelope me-2"></i>
-                    {userProfile?.email || "No email"}
-                  </span>
-                </li>
-                <li>
-                  <hr className="dropdown-divider" />
-                </li>
-                <li>
-                  <button
-                    className="dropdown-item text-danger"
-                    type="button"
-                    onClick={handleLogout}
-                  >
-                    <i className="bi bi-box-arrow-right me-2"></i>
-                    Logout
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <div className="container-fluid py-4">
-        <div className="row justify-content-center">
-          <div className="col-12 col-lg-10 col-xl-8">
-            {/* Profile Header */}
-            <div className="card shadow-lg border-0 mb-4">
-              <div className="card-body bg-gradient-primary text-white p-4">
-                <div className="row align-items-center">
-                  <div className="col-auto">
+    <AppLayout
+      title="Profile"
+      subtitle="Manage your account information and settings"
+    >
+      {/* Profile Header */}
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="card shadow-lg border-0 profile-header">
+            <div className="card-body text-white p-4">
+              <div className="row align-items-center">
+                <div className="col-auto">
+                  <div className="position-relative profile-picture-container">
                     <div
                       className="bg-white bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center position-relative"
-                      style={{ width: "80px", height: "80px" }}
+                      style={{ width: "100px", height: "100px" }}
                     >
-                      {userProfile?.profilePicture || userProfile?.avatar ? (
+                      {profileData?.profilePicture || photoPreview ? (
                         <img
-                          src={userProfile.profilePicture || userProfile.avatar}
+                          src={photoPreview || profileData.profilePicture}
                           alt="Profile"
                           className="rounded-circle"
                           style={{
-                            width: "70px",
-                            height: "70px",
+                            width: "90px",
+                            height: "90px",
                             objectFit: "cover",
                           }}
                         />
                       ) : (
                         <i
                           className="bi bi-person-fill text-white"
-                          style={{ fontSize: "2.5rem" }}
+                          style={{ fontSize: "3rem" }}
                         ></i>
                       )}
                     </div>
+
+                    {/* Enhanced Photo Upload Overlay */}
+                    <div className="profile-picture-overlay">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoChange}
+                        className="d-none"
+                        id="photo-upload"
+                      />
+                      <label
+                        htmlFor="photo-upload"
+                        className="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center rounded-circle cursor-pointer text-white"
+                        style={{
+                          background: "rgba(0, 0, 0, 0.7)",
+                          opacity: 0,
+                          transition: "opacity 0.3s ease",
+                        }}
+                        onMouseEnter={(e) => (e.target.style.opacity = 1)}
+                        onMouseLeave={(e) => (e.target.style.opacity = 0)}
+                      >
+                        <i className="bi bi-camera fs-4 mb-1"></i>
+                        <small
+                          className="text-center"
+                          style={{ fontSize: "0.7rem" }}
+                        >
+                          Change Photo
+                        </small>
+                      </label>
+                    </div>
+
+                    {/* Photo Action Buttons - Always Visible */}
+                    <div className="mt-2 d-flex gap-1 justify-content-center">
+                      <button
+                        className="btn btn-outline-light btn-sm"
+                        onClick={() =>
+                          document.getElementById("photo-upload").click()
+                        }
+                        title="Upload new photo"
+                      >
+                        <i className="bi bi-camera"></i>
+                      </button>
+                      {profileData?.profilePicture && (
+                        <button
+                          className="btn btn-outline-danger btn-sm"
+                          onClick={handleDeletePhoto}
+                          disabled={isDeletingPhoto}
+                          title="Delete current photo"
+                        >
+                          {isDeletingPhoto ? (
+                            <span className="spinner-border spinner-border-sm"></span>
+                          ) : (
+                            <i className="bi bi-trash"></i>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="col">
-                    <h2 className="fw-bold mb-1">
-                      {userProfile?.name || "User"}
-                    </h2>
-                    <p className="mb-1 opacity-90">
-                      {userProfile?.position || "Employee"}
-                    </p>
-                    <p className="mb-0 opacity-75 small">
-                      {userProfile?.email || "No email"}
-                    </p>
+                </div>
+                <div className="col">
+                  <h1 className="fw-bold mb-2">
+                    {profileData?.name || "User Profile"}
+                  </h1>
+                  <p className="mb-2 opacity-90">
+                    {profileData?.position || "Employee"}
+                  </p>
+                  <p className="mb-0 opacity-75">
+                    <i className="bi bi-envelope me-2"></i>
+                    {profileData?.email || "No email"}
+                  </p>
+                </div>
+                <div className="col-auto">
+                  <div className="text-center">
+                    <div className="fs-2 fw-bold">{profileCompletion()}%</div>
+                    <small className="opacity-75">Profile Complete</small>
+                    <div className="progress mt-2" style={{ width: "100px" }}>
+                      <div
+                        className="progress-bar bg-success"
+                        style={{ width: `${profileCompletion()}%` }}
+                      ></div>
+                    </div>
                   </div>
-                  <div className="col-auto">
-                    <button
-                      className="btn btn-outline-light"
-                      onClick={() => setIsEditing(!isEditing)}
-                    >
-                      <i
-                        className={`bi ${
-                          isEditing ? "bi-x" : "bi-pencil"
-                        } me-1`}
-                      ></i>
-                      {isEditing ? "Cancel" : "Edit"}
-                    </button>
+                </div>
+              </div>
+
+              {/* Enhanced Photo Upload Actions */}
+              {photoFile && (
+                <div className="row mt-4">
+                  <div className="col-12">
+                    <div className="alert alert-info d-flex align-items-center">
+                      <i className="bi bi-info-circle me-2"></i>
+                      <div className="flex-grow-1">
+                        <strong>New photo selected:</strong> {photoFile.name}
+                      </div>
+                      <div className="d-flex gap-2 ms-3">
+                        <button
+                          className="btn btn-success btn-sm"
+                          onClick={handlePhotoUpload}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm me-2"></span>
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <i className="bi bi-check me-2"></i>
+                              Save Photo
+                            </>
+                          )}
+                        </button>
+                        <button
+                          className="btn btn-outline-light btn-sm"
+                          onClick={() => {
+                            setPhotoFile(null);
+                            setPhotoPreview(null);
+                          }}
+                          disabled={isUploading}
+                        >
+                          <i className="bi bi-x me-1"></i>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Add a dedicated Photo Management Section in Profile Tab */}
+      {activeTab === "profile" && (
+        <div className="tab-pane fade show active">
+          <div className="row">
+            {/* Photo Management Card */}
+            <div className="col-12 mb-4">
+              <div className="card shadow-sm">
+                <div className="card-header">
+                  <h5 className="card-title mb-0">
+                    <i className="bi bi-image me-2"></i>
+                    Profile Photo
+                  </h5>
+                </div>
+                <div className="card-body">
+                  <div className="row align-items-center">
+                    <div className="col-auto">
+                      <div className="position-relative">
+                        <div
+                          className="border rounded-circle d-flex align-items-center justify-content-center bg-light"
+                          style={{ width: "80px", height: "80px" }}
+                        >
+                          {profileData?.profilePicture || photoPreview ? (
+                            <img
+                              src={photoPreview || profileData.profilePicture}
+                              alt="Profile"
+                              className="rounded-circle"
+                              style={{
+                                width: "70px",
+                                height: "70px",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            <i className="bi bi-person-fill text-muted fs-2"></i>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col">
+                      <h6 className="mb-2">
+                        {profileData?.profilePicture
+                          ? "Current Profile Photo"
+                          : "No Profile Photo"}
+                      </h6>
+                      <p className="text-muted small mb-3">
+                        Upload a professional photo to help colleagues recognize
+                        you. Recommended size: 400x400px. Max file size: 5MB.
+                      </p>
+                      <div className="d-flex gap-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePhotoChange}
+                          className="d-none"
+                          id="photo-upload-main"
+                        />
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() =>
+                            document.getElementById("photo-upload-main").click()
+                          }
+                        >
+                          <i className="bi bi-upload me-2"></i>
+                          {profileData?.profilePicture
+                            ? "Change Photo"
+                            : "Upload Photo"}
+                        </button>
+                        {profileData?.profilePicture && (
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={handleDeletePhoto}
+                            disabled={isDeletingPhoto}
+                          >
+                            {isDeletingPhoto ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <i className="bi bi-trash me-2"></i>
+                                Remove Photo
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Photo Preview and Actions */}
+                  {photoFile && (
+                    <div className="row mt-4">
+                      <div className="col-12">
+                        <div className="border rounded p-3 bg-light">
+                          <div className="row align-items-center">
+                            <div className="col-auto">
+                              <div
+                                className="border rounded-circle bg-white d-flex align-items-center justify-content-center"
+                                style={{ width: "60px", height: "60px" }}
+                              >
+                                <img
+                                  src={photoPreview}
+                                  alt="Preview"
+                                  className="rounded-circle"
+                                  style={{
+                                    width: "50px",
+                                    height: "50px",
+                                    objectFit: "cover",
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <div className="col">
+                              <h6 className="mb-1">New Photo Preview</h6>
+                              <p className="text-muted small mb-0">
+                                <strong>File:</strong> {photoFile.name} (
+                                {(photoFile.size / 1024 / 1024).toFixed(2)} MB)
+                              </p>
+                            </div>
+                            <div className="col-auto">
+                              <div className="d-flex gap-2">
+                                <button
+                                  className="btn btn-success btn-sm"
+                                  onClick={handlePhotoUpload}
+                                  disabled={isUploading}
+                                >
+                                  {isUploading ? (
+                                    <>
+                                      <span className="spinner-border spinner-border-sm me-2"></span>
+                                      Saving...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="bi bi-check-lg me-2"></i>
+                                      Save Photo
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  className="btn btn-outline-secondary btn-sm"
+                                  onClick={() => {
+                                    setPhotoFile(null);
+                                    setPhotoPreview(null);
+                                  }}
+                                  disabled={isUploading}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Profile Tabs */}
-            <div className="card shadow-sm">
-              <div className="card-header bg-white border-bottom">
-                <ul className="nav nav-tabs card-header-tabs" role="tablist">
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${
-                        activeTab === "profile" ? "active" : ""
-                      }`}
-                      onClick={() => setActiveTab("profile")}
-                      type="button"
-                    >
-                      <i className="bi bi-person me-2"></i>
-                      Profile Info
-                    </button>
-                  </li>
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${
-                        activeTab === "photo" ? "active" : ""
-                      }`}
-                      onClick={() => setActiveTab("photo")}
-                      type="button"
-                    >
-                      <i className="bi bi-camera me-2"></i>
-                      Photo
-                    </button>
-                  </li>
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${
-                        activeTab === "security" ? "active" : ""
-                      }`}
-                      onClick={() => setActiveTab("security")}
-                      type="button"
-                    >
-                      <i className="bi bi-shield-lock me-2"></i>
-                      Security
-                    </button>
-                  </li>
-                </ul>
-              </div>
+            {/* Rest of your existing profile form... */}
+            <div className="col-lg-8">
+              {/* Your existing Personal Information card */}
+            </div>
+            <div className="col-lg-4">
+              {/* Your existing Profile Tips card */}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Error Alert */}
+      {error && (
+        <div className="row mb-4">
+          <div className="col-12">
+            <div
+              className="alert alert-danger alert-dismissible fade show"
+              role="alert"
+            >
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              {error}
+              <button
+                type="button"
+                className="btn-close"
+                onClick={clearError}
+                aria-label="Close"
+              ></button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div className="card-body">
-                {/* Profile Info Tab */}
-                {activeTab === "profile" && (
-                  <div>
-                    <h5 className="mb-4">
+      {/* Tab Navigation */}
+      <div className="row mb-4">
+        <div className="col-12">
+          <ul className="nav nav-tabs" role="tablist">
+            <li className="nav-item" role="presentation">
+              <button
+                className={`nav-link ${
+                  activeTab === "profile" ? "active" : ""
+                }`}
+                onClick={() => setActiveTab("profile")}
+                type="button"
+                role="tab"
+              >
+                <i className="bi bi-person-lines-fill me-2"></i>
+                <span>Profile</span>
+              </button>
+            </li>
+            <li className="nav-item" role="presentation">
+              <button
+                className={`nav-link ${
+                  activeTab === "security" ? "active" : ""
+                }`}
+                onClick={() => setActiveTab("security")}
+                type="button"
+                role="tab"
+              >
+                <i className="bi bi-shield-lock me-2"></i>
+                <span>Security</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      <div className="tab-content">
+        {/* Profile Information Tab */}
+        {activeTab === "profile" && (
+          <div className="tab-pane fade show active">
+            <div className="row">
+              <div className="col-lg-8">
+                <div className="card shadow-sm">
+                  <div className="card-header d-flex justify-content-between align-items-center">
+                    <h5 className="card-title mb-0">
                       <i className="bi bi-person-lines-fill me-2"></i>
                       Personal Information
                     </h5>
-
-                    {error && (
-                      <div className="alert alert-danger" role="alert">
-                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                        {error.message || "An error occurred"}
-                      </div>
-                    )}
-
+                    <button
+                      className="btn btn-outline-primary btn-sm"
+                      onClick={handleEditToggle}
+                      disabled={isUpdating}
+                    >
+                      {isEditing ? (
+                        <>
+                          <i className="bi bi-x me-1"></i>
+                          Cancel
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-pencil me-1"></i>
+                          Edit
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="card-body">
                     <form onSubmit={handleProfileSubmit}>
                       <div className="row g-3">
                         <div className="col-md-6">
                           <label htmlFor="name" className="form-label">
-                            <i className="bi bi-person me-1"></i>
-                            Full Name
+                            Full Name <span className="text-danger">*</span>
                           </label>
                           <input
                             type="text"
@@ -474,16 +641,14 @@ const ProfilePage = () => {
                             id="name"
                             name="name"
                             value={profileForm.name}
-                            onChange={handleProfileFormChange}
+                            onChange={handleInputChange}
                             disabled={!isEditing}
                             required
                           />
                         </div>
-
                         <div className="col-md-6">
                           <label htmlFor="email" className="form-label">
-                            <i className="bi bi-envelope me-1"></i>
-                            Email Address
+                            Email Address <span className="text-danger">*</span>
                           </label>
                           <input
                             type="email"
@@ -491,15 +656,13 @@ const ProfilePage = () => {
                             id="email"
                             name="email"
                             value={profileForm.email}
-                            onChange={handleProfileFormChange}
+                            onChange={handleInputChange}
                             disabled={!isEditing}
                             required
                           />
                         </div>
-
                         <div className="col-md-6">
                           <label htmlFor="position" className="form-label">
-                            <i className="bi bi-briefcase me-1"></i>
                             Position
                           </label>
                           <input
@@ -508,14 +671,12 @@ const ProfilePage = () => {
                             id="position"
                             name="position"
                             value={profileForm.position}
-                            onChange={handleProfileFormChange}
+                            onChange={handleInputChange}
                             disabled={!isEditing}
                           />
                         </div>
-
                         <div className="col-md-6">
                           <label htmlFor="phoneNumber" className="form-label">
-                            <i className="bi bi-telephone me-1"></i>
                             Phone Number
                           </label>
                           <input
@@ -524,334 +685,221 @@ const ProfilePage = () => {
                             id="phoneNumber"
                             name="phoneNumber"
                             value={profileForm.phoneNumber}
-                            onChange={handleProfileFormChange}
+                            onChange={handleInputChange}
                             disabled={!isEditing}
-                          />
-                        </div>
-
-                        <div className="col-md-6">
-                          <label htmlFor="department" className="form-label">
-                            <i className="bi bi-building me-1"></i>
-                            Department
-                          </label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            id="department"
-                            name="department"
-                            value={profileForm.department}
-                            onChange={handleProfileFormChange}
-                            disabled={!isEditing}
-                          />
-                        </div>
-
-                        <div className="col-md-6">
-                          <label htmlFor="employeeId" className="form-label">
-                            <i className="bi bi-id-card me-1"></i>
-                            Employee ID
-                          </label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            id="employeeId"
-                            name="employeeId"
-                            value={profileForm.employeeId}
-                            onChange={handleProfileFormChange}
-                            disabled={true}
                           />
                         </div>
                       </div>
 
                       {isEditing && (
-                        <div className="d-flex justify-content-end mt-4">
-                          <button
-                            type="button"
-                            className="btn btn-outline-secondary me-2"
-                            onClick={() => setIsEditing(false)}
-                          >
-                            Cancel
-                          </button>
+                        <div className="mt-4">
                           <button
                             type="submit"
-                            className="btn btn-primary"
-                            disabled={!isEditing}
+                            className="btn btn-primary me-2"
+                            disabled={isUpdating}
                           >
-                            Save Changes
+                            {isUpdating ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                Updating...
+                              </>
+                            ) : (
+                              <>
+                                <i className="bi bi-check-lg me-2"></i>
+                                Update Profile
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={handleEditToggle}
+                            disabled={isUpdating}
+                          >
+                            Cancel
                           </button>
                         </div>
                       )}
                     </form>
                   </div>
-                )}
+                </div>
+              </div>
 
-                {/* Photo Tab */}
-                {activeTab === "photo" && (
-                  <div>
-                    <h5 className="mb-4">
-                      <i className="bi bi-camera-fill me-2"></i>
-                      Profile Photo
+              <div className="col-lg-4">
+                <div className="card shadow-sm">
+                  <div className="card-header">
+                    <h5 className="card-title mb-0">
+                      <i className="bi bi-info-circle me-2"></i>
+                      Profile Tips
                     </h5>
-
-                    <div className="row">
-                      <div className="col-md-4">
-                        <div className="text-center mb-4">
-                          <div
-                            className="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
-                            style={{ width: "150px", height: "150px" }}
-                          >
-                            {photoPreview ? (
-                              <img
-                                src={photoPreview}
-                                alt="Preview"
-                                className="rounded-circle"
-                                style={{
-                                  width: "140px",
-                                  height: "140px",
-                                  objectFit: "cover",
-                                }}
-                              />
-                            ) : userProfile?.profilePicture ||
-                              userProfile?.avatar ? (
-                              <img
-                                src={
-                                  userProfile.profilePicture ||
-                                  userProfile.avatar
-                                }
-                                alt="Current Profile"
-                                className="rounded-circle"
-                                style={{
-                                  width: "140px",
-                                  height: "140px",
-                                  objectFit: "cover",
-                                }}
-                              />
-                            ) : (
-                              <i
-                                className="bi bi-person-fill text-muted"
-                                style={{ fontSize: "4rem" }}
-                              ></i>
-                            )}
-                          </div>
-                          <p className="text-muted small">
-                            Current profile photo
-                          </p>
-                        </div>
+                  </div>
+                  <div className="card-body">
+                    <div className="d-flex align-items-start mb-3">
+                      <i className="bi bi-lightbulb text-warning me-2 mt-1"></i>
+                      <div>
+                        <strong>Complete your profile</strong>
+                        <p className="small text-muted mb-0">
+                          A complete profile helps your colleagues find and
+                          contact you.
+                        </p>
                       </div>
-
-                      <div className="col-md-8">
-                        <form onSubmit={handlePhotoSubmit}>
-                          <div className="mb-3">
-                            <label htmlFor="photoFile" className="form-label">
-                              <i className="bi bi-upload me-1"></i>
-                              Choose New Photo
-                            </label>
-                            <input
-                              type="file"
-                              className="form-control"
-                              id="photoFile"
-                              accept="image/*"
-                              onChange={handlePhotoChange}
-                            />
-                            <div className="form-text">
-                              <i className="bi bi-info-circle me-1"></i>
-                              Maximum file size: 5MB. Supported formats: JPG,
-                              PNG, GIF
-                            </div>
-                          </div>
-
-                          {photoFile && (
-                            <div className="alert alert-info">
-                              <i className="bi bi-file-earmark-image me-2"></i>
-                              Selected: {photoFile.name} (
-                              {(photoFile.size / 1024 / 1024).toFixed(2)} MB)
-                            </div>
-                          )}
-
-                          <button
-                            type="submit"
-                            className="btn btn-primary me-2"
-                            disabled={!photoFile || isUploading}
-                          >
-                            {isUploading ? (
-                              <>
-                                <span
-                                  className="spinner-border spinner-border-sm me-2"
-                                  role="status"
-                                ></span>
-                                Uploading...
-                              </>
-                            ) : (
-                              <>
-                                <i className="bi bi-cloud-upload me-2"></i>
-                                Upload Photo
-                              </>
-                            )}
-                          </button>
-
-                          {photoFile && (
-                            <button
-                              type="button"
-                              className="btn btn-outline-secondary"
-                              onClick={() => {
-                                setPhotoFile(null);
-                                setPhotoPreview(null);
-                              }}
-                            >
-                              Clear Selection
-                            </button>
-                          )}
-                        </form>
+                    </div>
+                    <div className="d-flex align-items-start mb-3">
+                      <i className="bi bi-camera text-info me-2 mt-1"></i>
+                      <div>
+                        <strong>Add a profile photo</strong>
+                        <p className="small text-muted mb-0">
+                          Upload a professional photo to personalize your
+                          profile.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="d-flex align-items-start">
+                      <i className="bi bi-shield-check text-success me-2 mt-1"></i>
+                      <div>
+                        <strong>Keep information current</strong>
+                        <p className="small text-muted mb-0">
+                          Update your details when they change to stay
+                          connected.
+                        </p>
                       </div>
                     </div>
                   </div>
-                )}
-
-                {/* Security Tab */}
-                {activeTab === "security" && (
-                  <div>
-                    <h5 className="mb-4">
-                      <i className="bi bi-shield-lock-fill me-2"></i>
-                      Security Settings
-                    </h5>
-
-                    <div className="row">
-                      <div className="col-md-8">
-                        <form onSubmit={handlePasswordSubmit}>
-                          <div className="mb-3">
-                            <label
-                              htmlFor="currentPassword"
-                              className="form-label"
-                            >
-                              <i className="bi bi-key me-1"></i>
-                              Current Password
-                            </label>
-                            <input
-                              type="password"
-                              className="form-control"
-                              id="currentPassword"
-                              name="currentPassword"
-                              value={passwordForm.currentPassword}
-                              onChange={handlePasswordFormChange}
-                              required
-                            />
-                          </div>
-
-                          <div className="mb-3">
-                            <label htmlFor="newPassword" className="form-label">
-                              <i className="bi bi-lock me-1"></i>
-                              New Password
-                            </label>
-                            <input
-                              type="password"
-                              className="form-control"
-                              id="newPassword"
-                              name="newPassword"
-                              value={passwordForm.newPassword}
-                              onChange={handlePasswordFormChange}
-                              minLength="8"
-                              required
-                            />
-                            <div className="form-text">
-                              Password must be at least 8 characters long
-                            </div>
-                          </div>
-
-                          <div className="mb-3">
-                            <label
-                              htmlFor="confirmPassword"
-                              className="form-label"
-                            >
-                              <i className="bi bi-lock-fill me-1"></i>
-                              Confirm New Password
-                            </label>
-                            <input
-                              type="password"
-                              className="form-control"
-                              id="confirmPassword"
-                              name="confirmPassword"
-                              value={passwordForm.confirmPassword}
-                              onChange={handlePasswordFormChange}
-                              minLength="8"
-                              required
-                            />
-                            {passwordForm.newPassword &&
-                              passwordForm.confirmPassword &&
-                              passwordForm.newPassword !==
-                                passwordForm.confirmPassword && (
-                                <div className="text-danger small mt-1">
-                                  <i className="bi bi-exclamation-triangle me-1"></i>
-                                  Passwords do not match
-                                </div>
-                              )}
-                          </div>
-
-                          <button
-                            type="submit"
-                            className="btn btn-primary"
-                            disabled={
-                              isUpdatingPassword ||
-                              !passwordForm.currentPassword ||
-                              !passwordForm.newPassword ||
-                              !passwordForm.confirmPassword ||
-                              passwordForm.newPassword !==
-                                passwordForm.confirmPassword
-                            }
-                          >
-                            {isUpdatingPassword ? (
-                              <>
-                                <span
-                                  className="spinner-border spinner-border-sm me-2"
-                                  role="status"
-                                ></span>
-                                Updating Password...
-                              </>
-                            ) : (
-                              <>
-                                <i className="bi bi-shield-check me-2"></i>
-                                Update Password
-                              </>
-                            )}
-                          </button>
-                        </form>
-                      </div>
-
-                      <div className="col-md-4">
-                        <div className="card bg-light">
-                          <div className="card-body">
-                            <h6 className="card-title">
-                              <i className="bi bi-info-circle me-2"></i>
-                              Password Requirements
-                            </h6>
-                            <ul className="list-unstyled small mb-0">
-                              <li className="mb-1">
-                                <i className="bi bi-check-circle text-success me-1"></i>
-                                At least 8 characters long
-                              </li>
-                              <li className="mb-1">
-                                <i className="bi bi-check-circle text-success me-1"></i>
-                                Mix of uppercase and lowercase
-                              </li>
-                              <li className="mb-1">
-                                <i className="bi bi-check-circle text-success me-1"></i>
-                                Include numbers
-                              </li>
-                              <li>
-                                <i className="bi bi-check-circle text-success me-1"></i>
-                                Include special characters
-                              </li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Security Tab */}
+        {activeTab === "security" && (
+          <div className="tab-pane fade show active">
+            <div className="row">
+              <div className="col-lg-8">
+                <div className="card shadow-sm">
+                  <div className="card-header">
+                    <h5 className="card-title mb-0">
+                      <i className="bi bi-key me-2"></i>
+                      Change Password
+                    </h5>
+                  </div>
+                  <div className="card-body">
+                    <form onSubmit={handlePasswordSubmit}>
+                      <div className="mb-3">
+                        <label htmlFor="currentPassword" className="form-label">
+                          Current Password{" "}
+                          <span className="text-danger">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          id="currentPassword"
+                          name="currentPassword"
+                          value={passwordForm.currentPassword}
+                          onChange={handlePasswordChange}
+                          required
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label htmlFor="newPassword" className="form-label">
+                          New Password <span className="text-danger">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          id="newPassword"
+                          name="newPassword"
+                          value={passwordForm.newPassword}
+                          onChange={handlePasswordChange}
+                          required
+                          minLength={8}
+                        />
+                        <div className="form-text">
+                          Password must be at least 8 characters long.
+                        </div>
+                      </div>
+                      <div className="mb-3">
+                        <label htmlFor="confirmPassword" className="form-label">
+                          Confirm New Password{" "}
+                          <span className="text-danger">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          id="confirmPassword"
+                          name="confirmPassword"
+                          value={passwordForm.confirmPassword}
+                          onChange={handlePasswordChange}
+                          required
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="btn btn-warning"
+                        disabled={isUpdatingPassword}
+                      >
+                        {isUpdatingPassword ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2"></span>
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-shield-check me-2"></i>
+                            Update Password
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-lg-4">
+                <div className="card shadow-sm">
+                  <div className="card-header">
+                    <h5 className="card-title mb-0">
+                      <i className="bi bi-shield-exclamation me-2"></i>
+                      Security Tips
+                    </h5>
+                  </div>
+                  <div className="card-body">
+                    <div className="d-flex align-items-start mb-3">
+                      <i className="bi bi-check-circle text-success me-2 mt-1"></i>
+                      <div>
+                        <strong>Use a strong password</strong>
+                        <p className="small text-muted mb-0">
+                          Include uppercase, lowercase, numbers, and symbols.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="d-flex align-items-start mb-3">
+                      <i className="bi bi-arrow-clockwise text-info me-2 mt-1"></i>
+                      <div>
+                        <strong>Change regularly</strong>
+                        <p className="small text-muted mb-0">
+                          Update your password every 3-6 months.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="d-flex align-items-start">
+                      <i className="bi bi-eye-slash text-warning me-2 mt-1"></i>
+                      <div>
+                        <strong>Keep it private</strong>
+                        <p className="small text-muted mb-0">
+                          Never share your password with others.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

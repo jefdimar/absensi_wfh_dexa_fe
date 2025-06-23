@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 
 // Context Providers
 import { AuthProvider } from "./contexts/AuthContext";
+import { ProfileProvider } from "./contexts/ProfileContext";
 
 // Components
 import ProtectedRoute from "./components/common/ProtectedRoute";
@@ -25,95 +26,97 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Router>
-          <div className="App">
-            <Routes>
-              {/* Public Routes */}
-              <Route
-                path="/login"
-                element={
-                  <PublicRoute>
-                    <Login />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/register"
-                element={
-                  <PublicRoute>
-                    <Register />
-                  </PublicRoute>
-                }
-              />
+        <ProfileProvider>
+          <Router>
+            <div className="App">
+              <Routes>
+                {/* Public Routes */}
+                <Route
+                  path="/login"
+                  element={
+                    <PublicRoute>
+                      <Login />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/register"
+                  element={
+                    <PublicRoute>
+                      <Register />
+                    </PublicRoute>
+                  }
+                />
 
-              {/* Protected Routes */}
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Protected Routes */}
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <DashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <DashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Catch all route */}
-              <Route
-                path="*"
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
+                {/* Catch all route */}
+                <Route
+                  path="*"
+                  element={
+                    <ProtectedRoute>
+                      <DashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
 
-            {/* Toast Notifications */}
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                duration: 4000,
-                style: {
-                  background: "#363636",
-                  color: "#fff",
-                },
-                success: {
-                  duration: 3000,
-                  iconTheme: {
-                    primary: "#4aed88",
+              {/* Toast Notifications */}
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  duration: 4000,
+                  style: {
+                    background: "#363636",
+                    color: "#fff",
                   },
-                },
-                error: {
-                  duration: 5000,
-                  iconTheme: {
-                    primary: "#ff6b6b",
+                  success: {
+                    duration: 3000,
+                    iconTheme: {
+                      primary: "#4aed88",
+                    },
                   },
-                },
-                loading: {
-                  duration: 2000,
-                  iconTheme: {
-                    primary: "#4f46e5",
+                  error: {
+                    duration: 5000,
+                    iconTheme: {
+                      primary: "#ff6b6b",
+                    },
                   },
-                },
-              }}
-            />
-          </div>
-        </Router>
+                  loading: {
+                    duration: 2000,
+                    iconTheme: {
+                      primary: "#4f46e5",
+                    },
+                  },
+                }}
+              />
+            </div>
+          </Router>
+        </ProfileProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

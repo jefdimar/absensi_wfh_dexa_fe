@@ -1,51 +1,50 @@
 import React from "react";
 
 // Button loading spinner
-export const ButtonLoading = ({ size = "sm", className = "" }) => (
-  <span
-    className={`spinner-border spinner-border-${size} me-2 ${className}`}
-    role="status"
-    aria-hidden="true"
-  ></span>
-);
+export const ButtonLoading = ({ children, loading = false, ...props }) => {
+  return (
+    <button {...props} disabled={loading || props.disabled}>
+      {loading && (
+        <span className="spinner-border spinner-border-sm me-2" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </span>
+      )}
+      {children}
+    </button>
+  );
+};
 
 // Page loading component
 export const PageLoading = ({ message = "Loading..." }) => {
   return (
     <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
       <div className="text-center">
-        <div className="spinner-border text-primary mb-3" role="status">
+        <div
+          className="spinner-border text-primary mb-3"
+          role="status"
+          style={{ width: "3rem", height: "3rem" }}
+        >
           <span className="visually-hidden">Loading...</span>
         </div>
-        <p className="text-muted">{message}</p>
+        <h5 className="text-muted">{message}</h5>
       </div>
     </div>
   );
 };
 
 // Card loading skeleton
-export const CardLoading = ({ rows = 3, showHeader = true }) => (
-  <div className="card shadow-sm">
-    {showHeader && (
-      <div className="card-header">
-        <div
-          className="loading-skeleton"
-          style={{ height: "1.5rem", width: "60%" }}
-        ></div>
-      </div>
-    )}
-    <div className="card-body">
-      {Array.from({ length: rows }).map((_, index) => (
-        <div key={index} className="mb-3">
-          <div
-            className="loading-skeleton"
-            style={{ height: "1rem", width: `${Math.random() * 40 + 60}%` }}
-          ></div>
+export const CardLoading = ({ message = "Loading..." }) => {
+  return (
+    <div className="d-flex align-items-center justify-content-center py-5">
+      <div className="text-center">
+        <div className="spinner-border text-primary mb-2" role="status">
+          <span className="visually-hidden">Loading...</span>
         </div>
-      ))}
+        <p className="text-muted mb-0">{message}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Table loading skeleton
 export const TableLoading = ({ columns = 4, rows = 5 }) => (
@@ -107,14 +106,16 @@ export const StatsLoading = ({ count = 4 }) => (
 );
 
 // Inline loading spinner
-export const InlineLoading = ({ size = "sm", text = "", className = "" }) => (
-  <div className={`d-flex align-items-center ${className}`}>
-    <div className={`spinner-border spinner-border-${size} me-2`} role="status">
+export const InlineLoading = ({ size = "sm", className = "" }) => {
+  return (
+    <span
+      className={`spinner-border spinner-border-${size} ${className}`}
+      role="status"
+    >
       <span className="visually-hidden">Loading...</span>
-    </div>
-    {text && <span className="text-muted">{text}</span>}
-  </div>
-);
+    </span>
+  );
+};
 
 // Overlay loading component
 export const OverlayLoading = ({
@@ -190,15 +191,25 @@ export const ComponentLoading = ({ message = "Loading..." }) => {
   );
 };
 
+export const SkeletonLoader = ({ lines = 3, height = "1rem" }) => {
+  return (
+    <div className="skeleton-loader">
+      {Array.from({ length: lines }).map((_, index) => (
+        <div
+          key={index}
+          className="skeleton-line mb-2"
+          style={{ height, width: `${Math.random() * 40 + 60}%` }}
+        ></div>
+      ))}
+    </div>
+  );
+};
+
 export default {
-  ButtonLoading,
   PageLoading,
-  CardLoading,
-  TableLoading,
-  StatsLoading,
-  InlineLoading,
-  OverlayLoading,
-  ProgressLoading,
-  PulseLoading,
   ComponentLoading,
+  InlineLoading,
+  ButtonLoading,
+  CardLoading,
+  SkeletonLoader,
 };

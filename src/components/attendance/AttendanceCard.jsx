@@ -138,20 +138,6 @@ const AttendanceCard = () => {
               Track your work hours
             </small>
           </div>
-          {/* Status indicator */}
-          <div className="text-end">
-            <span className={`badge bg-${statusDisplay.color} bg-opacity-75`}>
-              <i className={`bi ${statusDisplay.icon} me-1`}></i>
-              <span className="d-none d-md-inline">{statusDisplay.text}</span>
-              <span className="d-md-none">
-                {statusDisplay.text === "Checked In"
-                  ? "In"
-                  : statusDisplay.text === "Checked Out"
-                  ? "Out"
-                  : "Ready"}
-              </span>
-            </span>
-          </div>
         </div>
       </div>
 
