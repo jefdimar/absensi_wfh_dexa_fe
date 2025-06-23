@@ -14,6 +14,7 @@ import ErrorBoundary from "./components/common/ErrorBoundary";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import DashboardPage from "./pages/employee/DashboardPage";
+import ProfilePage from "./pages/employee/ProfilePage";
 
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -59,6 +60,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
                   </ProtectedRoute>
                 }
               />

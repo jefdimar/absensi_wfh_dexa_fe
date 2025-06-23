@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
-import { profileService } from '@/services/profileService';
 import { useMutation } from './useApi';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import { profileService } from '../services/profileService';
 import toast from 'react-hot-toast';
 
 export const useProfile = () => {
@@ -15,7 +15,9 @@ export const useProfile = () => {
   const updateProfile = useCallback(async (profileData) => {
     try {
       const result = await updateProfileMutation.mutate(profileData);
-      updateUser(result.user);
+      if (result.user) {
+        updateUser(result.user);
+      }
       toast.success('Profile updated successfully!');
       return result;
     } catch (error) {
@@ -27,7 +29,9 @@ export const useProfile = () => {
   const uploadPhoto = useCallback(async (photoFile) => {
     try {
       const result = await uploadPhotoMutation.mutate(photoFile);
-      updateUser({ profilePhoto: result.photoUrl });
+      if (result.photoUrl || result.url) {
+        updateUser({ profilePicture: result.photoUrl || result.url });
+      }
       toast.success('Profile photo updated successfully!');
       return result;
     } catch (error) {
@@ -49,7 +53,7 @@ export const useProfile = () => {
 
   const updatePhoneNumber = useCallback(async (phoneNumber) => {
     try {
-      const result = await updatePhoneMutation.mutate(phoneNumber);
+      const result = await updatePhoneMutation.mutate({ phoneNumber });
       updateUser({ phoneNumber });
       toast.success('Phone number updated successfully!');
       return result;
