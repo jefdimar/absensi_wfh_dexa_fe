@@ -1,26 +1,49 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useAttendance } from "../../contexts/AttendanceContext";
 
 const AttendanceSummary = () => {
-  const {
-    monthlyStats,
-    fetchMonthlyStats,
-    isLoading,
-    warnings,
-    clearWarnings,
-  } = useAttendance();
+  const { monthlyStats, fetchMonthlyStats, isLoading } = useAttendance();
+
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   useEffect(() => {
-    const currentDate = new Date();
-    fetchMonthlyStats(currentDate.getFullYear(), currentDate.getMonth() + 1);
+    const loadMonthlyStats = async () => {
+      setIsLoadingStats(true);
+
+      try {
+        const currentDate = new Date();
+        await fetchMonthlyStats(
+          currentDate.getFullYear(),
+          currentDate.getMonth() + 1
+        );
+      } catch (error) {
+        // Handle error silently
+      } finally {
+        setIsLoadingStats(false);
+      }
+    };
+
+    loadMonthlyStats();
   }, [fetchMonthlyStats]);
 
-  if (isLoading && !monthlyStats) {
+  const currentMonth = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  if (isLoadingStats && !monthlyStats) {
     return (
       <div className="card shadow-sm h-100">
+        <div className="card-header bg-warning text-white">
+          <h5 className="card-title mb-0">
+            <i className="bi bi-calendar-month me-2"></i>
+            Monthly Summary
+          </h5>
+          <small className="opacity-75 d-block mt-1">{currentMonth}</small>
+        </div>
         <div className="card-body text-center d-flex align-items-center justify-content-center">
           <div>
-            <div className="spinner-border" role="status">
+            <div className="spinner-border text-warning" role="status">
               <span className="visually-hidden">Loading...</span>
             </div>
             <p className="mt-2 text-muted">Loading monthly summary...</p>
@@ -30,14 +53,9 @@ const AttendanceSummary = () => {
     );
   }
 
-  const currentMonth = new Date().toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-
   return (
     <div className="card shadow-sm h-100">
-      <div className="card-header bg-warning text-white uniform-header">
+      <div className="card-header bg-warning text-white">
         <h5 className="card-title mb-0">
           <i className="bi bi-calendar-month me-2"></i>
           Monthly Summary
@@ -46,23 +64,6 @@ const AttendanceSummary = () => {
       </div>
 
       <div className="card-body d-flex flex-column">
-        {/* Warning for monthly stats */}
-        {warnings.some((w) => w.includes("monthly")) && (
-          <div
-            className="alert alert-warning alert-dismissible fade show mb-3"
-            role="alert"
-          >
-            <i className="bi bi-exclamation-triangle me-2"></i>
-            Some monthly statistics may be unavailable due to server issues.
-            <button
-              type="button"
-              className="btn-close"
-              onClick={clearWarnings}
-              aria-label="Close"
-            ></button>
-          </div>
-        )}
-
         {/* Main Stats Grid */}
         <div className="row g-3 mb-4">
           <div className="col-6">
@@ -196,7 +197,7 @@ const AttendanceSummary = () => {
           </div>
         )}
 
-        {/* Footer Stats - This will push to bottom */}
+        {/* Footer Stats */}
         <div className="mt-auto">
           {monthlyStats ? (
             <div className="bg-light rounded p-3">

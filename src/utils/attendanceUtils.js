@@ -6,11 +6,9 @@ export const calculateDailySummaryFromRecords = (records, targetDate = null) => 
     return null;
   }
 
-  // Use today if no target date provided
   const date = targetDate ? new Date(targetDate) : new Date();
   const dateString = date.toDateString();
 
-  // Filter records for the target date
   const dayRecords = records.filter(record => {
     const recordDate = new Date(record.timestamp);
     return recordDate.toDateString() === dateString;
@@ -20,16 +18,13 @@ export const calculateDailySummaryFromRecords = (records, targetDate = null) => 
     return null;
   }
 
-  // Sort records by timestamp
   const sortedRecords = dayRecords.sort((a, b) =>
     new Date(a.timestamp) - new Date(b.timestamp)
   );
 
-  // Find first check-in and last check-out
   const checkInRecord = sortedRecords.find(r => r.status === 'check-in');
   const checkOutRecord = [...sortedRecords].reverse().find(r => r.status === 'check-out');
 
-  // Calculate working hours
   let totalHours = null;
   let workingMinutes = 0;
 
@@ -44,7 +39,6 @@ export const calculateDailySummaryFromRecords = (records, targetDate = null) => 
     totalHours = `${hours}:${minutes.toString().padStart(2, '0')}`;
   }
 
-  // Determine status
   let status = 'not-started';
   if (checkOutRecord) {
     status = 'completed';
@@ -80,17 +74,14 @@ export const formatDuration = (minutes) => {
  * Get attendance status for a specific date
  */
 export const getAttendanceStatusForDate = (records, targetDate = null) => {
-  // Use today if no target date provided
   const date = targetDate ? new Date(targetDate) : new Date();
   const dateString = date.toDateString();
 
-  // Filter records for the target date (default: today)
   const dayRecords = records?.filter(record => {
     const recordDate = new Date(record.timestamp);
     return recordDate.toDateString() === dateString;
   }) || [];
 
-  // If no records for today, allow check-in
   if (dayRecords.length === 0) {
     return {
       status: 'not-started',
@@ -150,10 +141,9 @@ export const calculateWeeklySummary = (records) => {
     };
   }
 
-  // Get last 7 days
   const endDate = new Date();
   const startDate = new Date();
-  startDate.setDate(endDate.getDate() - 6); // Last 7 days including today
+  startDate.setDate(endDate.getDate() - 6);
 
   const weeklyData = [];
   const currentDate = new Date(startDate);

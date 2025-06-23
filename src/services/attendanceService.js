@@ -46,7 +46,7 @@ attendanceApi.interceptors.response.use(
 );
 
 export const attendanceService = {
-  // Check in - IMPROVED error handling
+  // Check in
   checkIn: async () => {
     try {
       const response = await attendanceApi.post('/attendance/check-in');
@@ -67,7 +67,6 @@ export const attendanceService = {
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
 
-        // Check if this is a state mismatch that requires refresh
         if (errorMessage.includes('already checked in') ||
           errorMessage.includes('duplicate') ||
           errorMessage.includes('status mismatch')) {
@@ -90,7 +89,7 @@ export const attendanceService = {
     }
   },
 
-  // Check out - IMPROVED error handling
+  // Check out
   checkOut: async () => {
     try {
       const response = await attendanceApi.post('/attendance/check-out');
@@ -111,7 +110,6 @@ export const attendanceService = {
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
 
-        // Check if this is a state mismatch that requires refresh
         if (errorMessage.includes('already checked out') ||
           errorMessage.includes('not checked in') ||
           errorMessage.includes('status mismatch')) {
@@ -135,93 +133,150 @@ export const attendanceService = {
     }
   },
 
-  // Get daily summary - IMPROVED with better fallback strategies
+  // Get daily summary - ALWAYS provide a date parameter
   getDailySummary: async (date = null) => {
-    console.log('📊 Requesting daily summary...');
+    console.log('📊 Requesting daily summary for date:', date);
 
-    // Strategy 1: Try the summary endpoint first
     try {
-      let url = '/attendance/summary/daily';
+      // ALWAYS provide a date parameter - never call the API without one
+      let dateStr;
+
       if (date) {
-        url += `?date=${date}`;
+        // Validate and format the provided date
+        if (typeof date === 'string') {
+          // Check if it's already in YYYY-MM-DD format
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (dateRegex.test(date)) {
+            dateStr = date;
+          } else {
+            // Try to parse it as a date
+            const parsedDate = new Date(date);
+            if (isNaN(parsedDate.getTime())) {
+              console.error('📊 Invalid date string provided:', date);
+              throw new Error('Invalid date format provided');
+            }
+            dateStr = parsedDate.toISOString().split('T')[0];
+          }
+        } else if (date instanceof Date) {
+          if (isNaN(date.getTime())) {
+            console.error('📊 Invalid Date object provided:', date);
+            throw new Error('Invalid Date object provided');
+          }
+          dateStr = date.toISOString().split('T')[0];
+        } else {
+          console.error('📊 Invalid date type provided:', typeof date, date);
+          throw new Error('Date must be a string or Date object');
+        }
+      } else {
+        // If no date provided, use today's date
+        const today = new Date();
+        dateStr = today.toISOString().split('T')[0];
       }
 
-      console.log('📊 Trying summary endpoint:', url);
+      // Double-check the final date string format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        console.error('📊 Final date string is invalid:', dateStr);
+        throw new Error('Failed to format date properly');
+      }
+
+      // ALWAYS include the date parameter
+      const url = `/attendance/summary/daily?date=${dateStr}`;
+      console.log('📊 Fetching from URL:', url);
+      console.log('📊 Using validated date string:', dateStr);
+
       const response = await attendanceApi.get(url);
 
-      const attendanceData = response.data;
-      if (attendanceData && attendanceData.employeeId) {
-        return {
-          success: true,
-          data: {
-            date: attendanceData.date,
-            checkInTime: attendanceData.checkInTime,
-            checkOutTime: attendanceData.checkOutTime,
-            totalHours: attendanceData.workingHours ? `${attendanceData.workingHours}:00` : null,
-            status: attendanceData.status,
-            employeeId: attendanceData.employeeId,
-            _source: 'api-summary'
-          },
+      console.log('📊 Daily summary API response:', response.data);
+
+      const apiData = response.data;
+
+      // Handle the actual API response format
+      if (apiData && apiData.employeeId) {
+        // Transform the API response to match our expected format
+        const transformedData = {
+          date: apiData.date,
+          employeeId: apiData.employeeId,
+          status: apiData.status,
+          checkInTime: apiData.checkInTime || null,
+          checkOutTime: apiData.checkOutTime || null,
+          totalHours: null,
+          workingMinutes: 0,
+          _source: 'api-summary'
         };
-      }
-    } catch (error) {
-      console.log('📊 Summary endpoint failed, trying fallback strategy...');
 
-      // Strategy 2: Try to get today's data from attendance records
-      try {
-        console.log('📊 Fallback: Getting daily summary from attendance records...');
-        const recordsResponse = await attendanceApi.get('/attendance/my-records');
+        // Calculate working hours if both times are available
+        if (apiData.checkInTime && apiData.checkOutTime) {
+          try {
+            const checkIn = new Date(apiData.checkInTime);
+            const checkOut = new Date(apiData.checkOutTime);
 
-        if (recordsResponse.data && Array.isArray(recordsResponse.data)) {
-          const records = recordsResponse.data;
+            if (!isNaN(checkIn.getTime()) && !isNaN(checkOut.getTime())) {
+              const diffMs = checkOut - checkIn;
 
-          // Filter today's records
-          const targetDate = date ? new Date(date) : new Date();
-          const todayString = targetDate.toDateString();
+              if (diffMs > 0) {
+                const workingMinutes = Math.floor(diffMs / (1000 * 60));
+                const hours = Math.floor(workingMinutes / 60);
+                const minutes = workingMinutes % 60;
 
-          const todayRecords = records.filter(record => {
-            const recordDate = new Date(record.timestamp);
-            return recordDate.toDateString() === todayString;
-          });
-
-          if (todayRecords.length > 0) {
-            // Find check-in and check-out records
-            const checkInRecord = todayRecords.find(r => r.status === 'check-in');
-            const checkOutRecord = todayRecords.find(r => r.status === 'check-out');
-
-            // Calculate working hours if both records exist
-            let totalHours = null;
-            if (checkInRecord && checkOutRecord) {
-              const checkInTime = new Date(checkInRecord.timestamp);
-              const checkOutTime = new Date(checkOutRecord.timestamp);
-              const diffMs = checkOutTime - checkInTime;
-              const diffHours = diffMs / (1000 * 60 * 60);
-              const hours = Math.floor(diffHours);
-              const minutes = Math.round((diffHours - hours) * 60);
-              totalHours = `${hours}:${minutes.toString().padStart(2, '0')}`;
+                transformedData.totalHours = `${hours}:${minutes.toString().padStart(2, '0')}`;
+                transformedData.workingMinutes = workingMinutes;
+              }
             }
-
-            return {
-              success: true,
-              data: {
-                date: targetDate.toISOString().split('T')[0],
-                checkInTime: checkInRecord?.timestamp || null,
-                checkOutTime: checkOutRecord?.timestamp || null,
-                totalHours: totalHours,
-                status: checkOutRecord ? 'completed' : (checkInRecord ? 'in-progress' : 'not-started'),
-                employeeId: checkInRecord?.employeeId || checkOutRecord?.employeeId,
-                _source: 'fallback-records'
-              },
-            };
+          } catch (timeError) {
+            console.warn('📊 Error calculating working hours:', timeError);
           }
         }
-      } catch (fallbackError) {
-        console.log('📊 Fallback strategy also failed:', fallbackError);
+
+        // Map API status to our expected status
+        switch (apiData.status) {
+          case 'absent':
+            transformedData.status = 'not-started';
+            break;
+          case 'present':
+            // If we have both check-in and check-out, it's completed
+            if (apiData.checkInTime && apiData.checkOutTime) {
+              transformedData.status = 'completed';
+            } else if (apiData.checkInTime) {
+              transformedData.status = 'in-progress';
+            } else {
+              transformedData.status = 'not-started';
+            }
+            break;
+          case 'incomplete':
+            transformedData.status = 'in-progress';
+            break;
+          default:
+            transformedData.status = 'not-started';
+        }
+
+        console.log('📊 Transformed daily summary:', transformedData);
+
+        return {
+          success: true,
+          data: transformedData,
+        };
+      } else {
+        console.log('📊 No data in API response');
+        return {
+          success: true,
+          data: null,
+        };
       }
 
-      // Handle the original error
+    } catch (error) {
+      console.error('📊 Daily summary API error:', error);
+
+      // If it's a date validation error, don't retry with fallback
+      if (error.message && error.message.includes('Invalid date')) {
+        return {
+          success: false,
+          error: 'Invalid date provided for daily summary',
+          data: null,
+        };
+      }
+
       if (error.response?.status === 404) {
-        console.log('📊 No attendance record found for today');
+        console.log('📊 No attendance record found for the requested date');
         return {
           success: true,
           data: null,
@@ -240,17 +295,17 @@ export const attendanceService = {
           data: null,
         };
       }
-    }
 
-    // Final fallback - return null data
-    return {
-      success: true,
-      data: null,
-      warning: 'Unable to load daily summary at this time',
-    };
+      // For other errors, return null data but don't fail
+      return {
+        success: true,
+        data: null,
+        warning: 'Unable to load daily summary at this time',
+      };
+    }
   },
 
-  // Get attendance records - IMPROVED error handling
+  // Get attendance records
   getAttendanceRecords: async (startDate = null, endDate = null) => {
     try {
       let url = '/attendance/my-records';
@@ -285,7 +340,6 @@ export const attendanceService = {
     } catch (error) {
       console.error('Get attendance records API error:', error);
 
-      // Handle different error scenarios
       if (error.response?.status === 404) {
         return {
           success: true,
@@ -294,7 +348,7 @@ export const attendanceService = {
       } else if (error.response?.status >= 500) {
         console.error('📅 Server error getting attendance records:', error.response?.data);
         return {
-          success: true, // Don't fail the app
+          success: true,
           data: [],
           warning: 'Unable to load attendance records due to server error',
         };
@@ -306,16 +360,15 @@ export const attendanceService = {
         };
       }
 
-      // For other errors, return empty data but don't fail
       return {
-        success: true, // Don't fail the app
+        success: true,
         data: [],
         warning: 'Unable to load attendance records at this time',
       };
     }
   },
 
-  // Get monthly stats - IMPROVED error handling
+  // Get monthly stats
   getMonthlyStats: async (year = null, month = null) => {
     try {
       let url = '/attendance/stats/monthly';
@@ -373,7 +426,6 @@ export const attendanceService = {
           data: normalizedStats,
         };
       } else {
-        // Return default values for no data
         return {
           success: true,
           data: {
@@ -392,7 +444,6 @@ export const attendanceService = {
     } catch (error) {
       console.error('Get monthly stats API error:', error);
 
-      // Default stats object
       const defaultStats = {
         totalDays: 0,
         totalHours: '0:00',
@@ -405,23 +456,19 @@ export const attendanceService = {
         workingDaysInMonth: 0,
       };
 
-      // Handle different error scenarios
       if (error.response?.status === 404) {
-        // No data for that month - this is normal
         return {
           success: true,
           data: defaultStats,
         };
       } else if (error.response?.status >= 500) {
-        // Server error - log it but don't fail the app
         console.error('📊 Server error getting monthly stats:', error.response?.data);
         return {
-          success: true, // Don't fail the app
+          success: true,
           data: defaultStats,
           warning: 'Monthly statistics temporarily unavailable due to server maintenance',
         };
       } else if (error.response?.status === 401) {
-        // Authentication error
         return {
           success: false,
           error: 'Authentication required. Please login again.',
@@ -429,9 +476,8 @@ export const attendanceService = {
         };
       }
 
-      // For other errors, return default data but don't fail
       return {
-        success: true, // Don't fail the app
+        success: true,
         data: defaultStats,
         warning: 'Unable to load monthly statistics at this time',
       };

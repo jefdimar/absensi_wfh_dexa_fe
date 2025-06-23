@@ -10,22 +10,18 @@ export const ButtonLoading = ({ size = "sm", className = "" }) => (
 );
 
 // Page loading component
-export const PageLoading = ({ message = "Loading...", fullScreen = true }) => (
-  <div
-    className={`d-flex flex-column justify-content-center align-items-center ${
-      fullScreen ? "min-vh-100" : "py-5"
-    }`}
-  >
-    <div
-      className="spinner-border text-primary mb-3"
-      role="status"
-      style={{ width: "3rem", height: "3rem" }}
-    >
-      <span className="visually-hidden">Loading...</span>
+export const PageLoading = ({ message = "Loading..." }) => {
+  return (
+    <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+      <div className="text-center">
+        <div className="spinner-border text-primary mb-3" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="text-muted">{message}</p>
+      </div>
     </div>
-    <p className="text-muted">{message}</p>
-  </div>
-);
+  );
+};
 
 // Card loading skeleton
 export const CardLoading = ({ rows = 3, showHeader = true }) => (
@@ -178,6 +174,22 @@ export const PulseLoading = ({
   ></div>
 );
 
+export const ComponentLoading = ({ message = "Loading..." }) => {
+  return (
+    <div className="d-flex align-items-center justify-content-center py-5">
+      <div className="text-center">
+        <div
+          className="spinner-border spinner-border-sm text-primary mb-2"
+          role="status"
+        >
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="text-muted small">{message}</p>
+      </div>
+    </div>
+  );
+};
+
 export default {
   ButtonLoading,
   PageLoading,
@@ -188,4 +200,5 @@ export default {
   OverlayLoading,
   ProgressLoading,
   PulseLoading,
+  ComponentLoading,
 };

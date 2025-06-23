@@ -1,40 +1,28 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useAttendance } from "../../contexts/AttendanceContext"; // Changed from contexts to match other components
+import { useAttendance } from "../../contexts/AttendanceContext";
 
 const RecentAttendance = () => {
-  const {
-    attendanceRecords,
-    fetchAttendanceRecords,
-    isLoading,
-    error,
-    clearError,
-  } = useAttendance();
+  const { attendanceRecords, fetchAttendanceRecords, isLoading } =
+    useAttendance();
 
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Initialize data only once
   useEffect(() => {
     if (!hasInitialized && !isLoading) {
-      console.log("📅 Initializing recent attendance...");
       fetchAttendanceRecords();
       setHasInitialized(true);
     }
   }, [hasInitialized, isLoading, fetchAttendanceRecords]);
 
-  // Manual refresh handler
   const handleRefresh = useCallback(() => {
-    clearError();
-    console.log("🔄 Manual refresh recent attendance...");
-    fetchAttendanceRecords(null, null, true); // force refresh
-  }, [clearError, fetchAttendanceRecords]);
+    fetchAttendanceRecords(true);
+  }, [fetchAttendanceRecords]);
 
-  // Process records (memoized to prevent recalculation)
   const filteredRecords = useMemo(() => {
     if (!attendanceRecords || !Array.isArray(attendanceRecords)) {
       return [];
     }
 
-    // Filter to last 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -43,7 +31,6 @@ const RecentAttendance = () => {
       return recordDate >= sevenDaysAgo;
     });
 
-    // Group records by date
     const groupedByDate = {};
 
     recentRecords.forEach((record) => {
@@ -67,13 +54,11 @@ const RecentAttendance = () => {
       }
     });
 
-    // Convert to array and sort by date (newest first)
     return Object.values(groupedByDate).sort(
       (a, b) => new Date(b.date) - new Date(a.date)
     );
   }, [attendanceRecords]);
 
-  // Memoize formatting functions
   const formatDate = useCallback((dateString) => {
     if (!dateString) return "Unknown";
 
@@ -85,7 +70,6 @@ const RecentAttendance = () => {
         day: "numeric",
       });
     } catch (error) {
-      console.error("Date formatting error:", error);
       return "Invalid Date";
     }
   }, []);
@@ -101,7 +85,6 @@ const RecentAttendance = () => {
         hour12: true,
       });
     } catch (error) {
-      console.error("Time formatting error:", error);
       return "--:--";
     }
   }, []);
@@ -122,7 +105,6 @@ const RecentAttendance = () => {
 
       return `${hours}:${minutes.toString().padStart(2, "0")}`;
     } catch (error) {
-      console.error("Working hours calculation error:", error);
       return "--:--";
     }
   }, []);
@@ -159,7 +141,6 @@ const RecentAttendance = () => {
     }
   }, []);
 
-  // Summary stats
   const summaryStats = useMemo(() => {
     return {
       completed: filteredRecords.filter((day) => day.checkIn && day.checkOut)
@@ -174,7 +155,7 @@ const RecentAttendance = () => {
 
   return (
     <div className="card shadow-sm">
-      <div className="card-header bg-info text-white uniform-header">
+      <div className="card-header bg-info text-white">
         <div className="d-flex justify-content-between align-items-center">
           <div>
             <h5 className="card-title mb-0">
@@ -197,24 +178,6 @@ const RecentAttendance = () => {
       </div>
 
       <div className="card-body">
-        {/* Error Alert */}
-        {error && (
-          <div
-            className="alert alert-warning alert-dismissible fade show mb-3"
-            role="alert"
-          >
-            <i className="bi bi-exclamation-triangle-fill me-2"></i>
-            {error}
-            <button
-              type="button"
-              className="btn-close"
-              onClick={clearError}
-              aria-label="Close"
-            ></button>
-          </div>
-        )}
-
-        {/* Loading State */}
         {isLoading ? (
           <div className="text-center py-4">
             <div
@@ -228,7 +191,6 @@ const RecentAttendance = () => {
             </p>
           </div>
         ) : filteredRecords.length === 0 ? (
-          /* No Data State */
           <div className="text-center py-5">
             <i
               className="bi bi-calendar-x text-muted"
@@ -249,7 +211,6 @@ const RecentAttendance = () => {
             </button>
           </div>
         ) : (
-          /* Data Table */
           <>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <small className="text-muted">
@@ -344,7 +305,6 @@ const RecentAttendance = () => {
               </table>
             </div>
 
-            {/* Summary Footer */}
             <div className="mt-3 p-3 bg-light rounded">
               <div className="row text-center">
                 <div className="col-3">

@@ -9,7 +9,6 @@ import RecentAttendance from "../../components/attendance/RecentAttendance";
 import AttendanceSummary from "../../components/attendance/AttendanceSummary";
 import { PageLoading } from "../../components/ui/Loading";
 
-// Dashboard content component (inside AttendanceProvider)
 const DashboardContent = () => {
   const { user, logout } = useAuth();
   const {
@@ -21,47 +20,64 @@ const DashboardContent = () => {
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [hasInitialized, setHasInitialized] = useState(false);
-  const [userProfile, setUserProfile] = useState(null); // Add this line
+  const [userProfile, setUserProfile] = useState(null);
 
-  // Add this useEffect to fetch user data from localStorage
   useEffect(() => {
     const userData = localStorage.getItem("user_data");
     if (userData) {
       try {
         const parsedUser = JSON.parse(userData);
         setUserProfile(parsedUser);
-        console.log("User profile loaded:", parsedUser);
       } catch (error) {
-        console.error("Error parsing user data:", error);
-        setUserProfile(user); // Fallback to auth context user
+        setUserProfile(user);
       }
     } else {
-      setUserProfile(user); // Fallback to auth context user
+      setUserProfile(user);
     }
   }, [user]);
 
-  // Update current time every minute
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    }, 60000);
 
     return () => clearInterval(timer);
   }, []);
 
-  // Initial data fetch - only once when component mounts
   useEffect(() => {
     if (!hasInitialized) {
-      console.log("🚀 Initializing dashboard data...");
-
       const initializeDashboard = async () => {
         try {
-          // Fetch initial data
-          await Promise.all([
-            fetchAttendanceRecords(),
-            fetchDailySummary(),
-            fetchMonthlyStats(),
-          ]);
+          console.log("🚀 Initializing dashboard data...");
+
+          // Always try to fetch records first as they're most important
+          await fetchAttendanceRecords();
+
+          // Try to fetch daily summary for today (don't pass any date parameter)
+          try {
+            await fetchDailySummary(); // No date parameter = use today
+          } catch (summaryError) {
+            console.warn(
+              "📊 Daily summary failed during initialization:",
+              summaryError
+            );
+            // Daily summary will fall back to calculated values
+          }
+
+          // Try to fetch monthly stats, but it's not critical
+          try {
+            const currentDate = new Date();
+            await fetchMonthlyStats(
+              currentDate.getFullYear(),
+              currentDate.getMonth() + 1
+            );
+          } catch (statsError) {
+            console.warn(
+              "📊 Monthly stats failed during initialization:",
+              statsError
+            );
+            // Monthly stats will use defaults
+          }
 
           setHasInitialized(true);
           console.log("✅ Dashboard initialized successfully");
@@ -80,30 +96,40 @@ const DashboardContent = () => {
     fetchMonthlyStats,
   ]);
 
-  // Manual refresh function
   const handleRefresh = useCallback(async () => {
     console.log("🔄 Manual refresh triggered");
     try {
-      await Promise.all([
-        fetchAttendanceRecords(null, null, true), // force refresh
-        fetchDailySummary(null, true), // force refresh
-        fetchMonthlyStats(null, null, true), // force refresh
-      ]);
+      await fetchAttendanceRecords(null, null, true);
+
+      try {
+        await fetchDailySummary(null, true); // No date = use today
+      } catch (summaryError) {
+        console.warn("📊 Daily summary refresh failed:", summaryError);
+      }
+
+      try {
+        const currentDate = new Date();
+        await fetchMonthlyStats(
+          currentDate.getFullYear(),
+          currentDate.getMonth() + 1,
+          true
+        );
+      } catch (statsError) {
+        console.warn("📊 Monthly stats refresh failed:", statsError);
+      }
     } catch (error) {
       console.error("❌ Manual refresh failed:", error);
     }
   }, [fetchAttendanceRecords, fetchDailySummary, fetchMonthlyStats]);
 
-  // Handle logout
   const handleLogout = useCallback(async () => {
     try {
       await logout();
     } catch (error) {
-      console.error("Logout error:", error);
+      // Handle error silently
     }
   }, [logout]);
 
-  // Show loading only during initial load
   if (!hasInitialized && isLoading) {
     return <PageLoading message="Loading dashboard..." />;
   }
@@ -112,7 +138,6 @@ const DashboardContent = () => {
     return date.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
-      second: "2-digit",
       hour12: true,
     });
   };
@@ -156,7 +181,6 @@ const DashboardContent = () => {
                 </span>
               </button>
 
-              {/* Dropdown menu with responsive positioning */}
               <ul
                 className="dropdown-menu dropdown-menu-end shadow"
                 aria-labelledby="userDropdown"
@@ -183,21 +207,6 @@ const DashboardContent = () => {
                   <hr className="dropdown-divider" />
                 </li>
                 <li>
-                  <button className="dropdown-item" type="button">
-                    <i className="bi bi-person me-2"></i>
-                    Profile
-                  </button>
-                </li>
-                <li>
-                  <button className="dropdown-item" type="button">
-                    <i className="bi bi-gear me-2"></i>
-                    Settings
-                  </button>
-                </li>
-                <li>
-                  <hr className="dropdown-divider" />
-                </li>
-                <li>
                   <button
                     className="dropdown-item text-danger"
                     type="button"
@@ -215,12 +224,11 @@ const DashboardContent = () => {
 
       {/* Main Content */}
       <div className="container-fluid py-4">
-        {/* Enhanced Welcome Section */}
+        {/* Welcome Section */}
         <div className="row mb-4">
           <div className="col-12">
             <div className="card shadow-lg border-0 overflow-hidden">
               <div className="card-body bg-gradient-primary text-white position-relative">
-                {/* Background Pattern */}
                 <div
                   className="position-absolute top-0 end-0 opacity-10"
                   style={{ fontSize: "8rem", right: "-2rem", top: "-2rem" }}
@@ -229,7 +237,6 @@ const DashboardContent = () => {
                 </div>
 
                 <div className="row align-items-center position-relative">
-                  {/* Profile Avatar */}
                   <div className="col-auto">
                     <div
                       className="bg-white bg-opacity-20 backdrop-blur rounded-circle d-flex align-items-center justify-content-center shadow-lg"
@@ -255,7 +262,6 @@ const DashboardContent = () => {
                     </div>
                   </div>
 
-                  {/* Welcome Message */}
                   <div className="col">
                     <div className="mb-3">
                       <h1 className="fw-bold mb-2 display-6">
@@ -267,7 +273,6 @@ const DashboardContent = () => {
                       </p>
                     </div>
 
-                    {/* Quick Info Pills */}
                     <div className="d-flex flex-wrap gap-2">
                       <span className="badge bg-white bg-opacity-20 text-white px-3 py-2 rounded-pill">
                         <i className="bi bi-briefcase-fill me-2"></i>
@@ -282,6 +287,21 @@ const DashboardContent = () => {
                         Active
                       </span>
                     </div>
+                  </div>
+
+                  <div className="col-auto">
+                    <button
+                      className="btn btn-outline-light"
+                      onClick={handleRefresh}
+                      disabled={isLoading}
+                      title="Refresh all data"
+                    >
+                      <i
+                        className={`bi bi-arrow-clockwise ${
+                          isLoading ? "spin" : ""
+                        }`}
+                      ></i>
+                    </button>
                   </div>
                 </div>
               </div>

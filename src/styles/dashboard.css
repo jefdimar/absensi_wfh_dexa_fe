@@ -140,21 +140,6 @@
   color: white;
 }
 
-/* Server status indicator */
-.bg-warning.bg-opacity-10 {
-  background-color: rgba(255, 193, 7, 0.1) !important;
-}
-
-/* Data source indicators */
-.opacity-75 {
-  opacity: 0.75 !important;
-}
-
-/* Fix for Chrome extension errors - hide them */
-.chrome-extension-error {
-  display: none !important;
-}
-
 /* Simple dropdown without Bootstrap JS */
 .dropdown {
   position: relative;

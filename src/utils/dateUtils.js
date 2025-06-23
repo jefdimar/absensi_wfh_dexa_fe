@@ -1,33 +1,130 @@
-import { format, startOfMonth, endOfDay, parseISO } from 'date-fns';
-import { DATE_FORMATS } from '@/constants';
+import { format, startOfMonth, endOfDay, parseISO, isValid } from 'date-fns';
 
 export const dateUtils = {
-  // Format date for display
-  formatDate: (date, formatType = DATE_FORMATS.DISPLAY) => {
-    if (!date) return '';
-    const dateObj = typeof date === 'string' ? parseISO(date) : date;
-    return format(dateObj, formatType);
+  // Safely format date for API (YYYY-MM-DD)
+  formatForAPI: (date) => {
+    if (!date) {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    let dateObj;
+
+    if (typeof date === 'string') {
+      // Check if already in YYYY-MM-DD format
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return date;
+      }
+      dateObj = new Date(date);
+    } else if (date instanceof Date) {
+      dateObj = date;
+    } else {
+      console.warn('Invalid date type provided to formatForAPI:', typeof date, date);
+      return new Date().toISOString().split('T')[0];
+    }
+
+    if (isNaN(dateObj.getTime())) {
+      console.warn('Invalid date provided to formatForAPI:', date);
+      return new Date().toISOString().split('T')[0];
+    }
+
+    return dateObj.toISOString().split('T')[0];
   },
 
-  // Format date for API
-  formatForAPI: (date) => {
+  // Validate if a date string is valid
+  isValidDateString: (dateString) => {
+    if (!dateString || typeof dateString !== 'string') {
+      return false;
+    }
+
+    // Check format first
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return false;
+    }
+
+    // Check if it's a valid date
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+  },
+
+  // Get today's date in YYYY-MM-DD format
+  getTodayString: () => {
+    return new Date().toISOString().split('T')[0];
+  },
+
+  // Format date for display
+  formatDate: (date, formatType = 'MMM dd, yyyy') => {
     if (!date) return '';
-    const dateObj = typeof date === 'string' ? parseISO(date) : date;
-    return format(dateObj, DATE_FORMATS.API);
+
+    let dateObj;
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else if (date instanceof Date) {
+      dateObj = date;
+    } else {
+      return '';
+    }
+
+    if (isNaN(dateObj.getTime())) {
+      return '';
+    }
+
+    try {
+      return format(dateObj, formatType);
+    } catch (error) {
+      console.warn('Error formatting date:', error);
+      return '';
+    }
   },
 
   // Format time
   formatTime: (date) => {
     if (!date) return '';
-    const dateObj = typeof date === 'string' ? parseISO(date) : date;
-    return format(dateObj, DATE_FORMATS.TIME);
+
+    let dateObj;
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else if (date instanceof Date) {
+      dateObj = date;
+    } else {
+      return '';
+    }
+
+    if (isNaN(dateObj.getTime())) {
+      return '';
+    }
+
+    return dateObj.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   },
 
   // Format datetime
   formatDateTime: (date) => {
     if (!date) return '';
-    const dateObj = typeof date === 'string' ? parseISO(date) : date;
-    return format(dateObj, DATE_FORMATS.DATETIME);
+
+    let dateObj;
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else if (date instanceof Date) {
+      dateObj = date;
+    } else {
+      return '';
+    }
+
+    if (isNaN(dateObj.getTime())) {
+      return '';
+    }
+
+    return dateObj.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   },
 
   // Get start of current month
@@ -40,15 +137,25 @@ export const dateUtils = {
     return endOfDay(new Date());
   },
 
-  // Get today's date string
-  getTodayString: () => {
-    return format(new Date(), DATE_FORMATS.API);
-  },
-
   // Check if date is today
   isToday: (date) => {
     const today = new Date();
-    const checkDate = typeof date === 'string' ? parseISO(date) : date;
-    return format(today, DATE_FORMATS.API) === format(checkDate, DATE_FORMATS.API);
+    let checkDate;
+
+    if (typeof date === 'string') {
+      checkDate = new Date(date);
+    } else if (date instanceof Date) {
+      checkDate = date;
+    } else {
+      return false;
+    }
+
+    if (isNaN(checkDate.getTime())) {
+      return false;
+    }
+
+    return today.toDateString() === checkDate.toDateString();
   }
 };
+
+export default dateUtils;

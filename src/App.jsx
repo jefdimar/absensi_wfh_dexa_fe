@@ -15,13 +15,10 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import DashboardPage from "./pages/employee/DashboardPage";
 
-// Utils
-import "./utils/apiTest"; // Import to add testApiEndpoints to window
-
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import "./styles/dashboard.css"; // Add this line
+import "./styles/dashboard.css";
 
 function App() {
   return (

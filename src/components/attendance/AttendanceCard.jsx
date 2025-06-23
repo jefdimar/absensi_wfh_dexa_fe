@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useAttendance } from "../../hooks/useAttendance";
+import { useAttendance } from "../../contexts/AttendanceContext";
 
 const AttendanceCard = () => {
   const {
@@ -8,10 +8,6 @@ const AttendanceCard = () => {
     getCurrentStatus,
     dailySummary,
     isLoading,
-    error,
-    warnings,
-    clearError,
-    clearWarnings,
     fetchAttendanceRecords,
     fetchDailySummary,
   } = useAttendance();
@@ -23,7 +19,6 @@ const AttendanceCard = () => {
     canCheckOut: false,
   });
 
-  // Update current time every second
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -32,64 +27,39 @@ const AttendanceCard = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Update attendance status when data changes
   useEffect(() => {
     const newStatus = getCurrentStatus();
-    console.log("🔄 Updating attendance status:", newStatus);
     setAttendanceStatus(newStatus);
   }, [getCurrentStatus]);
 
   const handleCheckIn = async () => {
-    console.log("🟢 Check-in button clicked");
     const result = await checkIn();
-
-    // If the result indicates we refreshed data, update the status
-    if (result.refreshed) {
-      // Give a moment for the data to update, then refresh status
-      setTimeout(() => {
-        const newStatus = getCurrentStatus();
-        setAttendanceStatus(newStatus);
-      }, 500);
-    } else if (result.success) {
-      // Normal success case
+    if (result.success) {
       const newStatus = getCurrentStatus();
       setAttendanceStatus(newStatus);
     }
   };
 
   const handleCheckOut = async () => {
-    console.log("🔴 Check-out button clicked");
     const result = await checkOut();
-
-    // If the result indicates we refreshed data, update the status
-    if (result.refreshed) {
-      // Give a moment for the data to update, then refresh status
-      setTimeout(() => {
-        const newStatus = getCurrentStatus();
-        setAttendanceStatus(newStatus);
-      }, 500);
-    } else if (result.success) {
-      // Normal success case
+    if (result.success) {
       const newStatus = getCurrentStatus();
       setAttendanceStatus(newStatus);
     }
   };
 
-  // Manual refresh function
   const handleRefresh = async () => {
-    console.log("🔄 Manual refresh for status sync");
     try {
       await Promise.all([
-        fetchAttendanceRecords(null, null, true),
+        fetchAttendanceRecords(true),
         fetchDailySummary(null, true),
       ]);
-      // Update status after refresh
       setTimeout(() => {
         const newStatus = getCurrentStatus();
         setAttendanceStatus(newStatus);
       }, 300);
     } catch (error) {
-      console.error("❌ Manual refresh failed:", error);
+      // Handle error silently
     }
   };
 
@@ -137,7 +107,7 @@ const AttendanceCard = () => {
   const statusDisplay = getStatusDisplay();
 
   return (
-    <div className="card shadow-sm attendance-card">
+    <div className="card shadow-sm attendance-card h-100">
       <div className="card-header bg-success text-white">
         <div className="d-flex justify-content-between align-items-center">
           <div>
@@ -147,7 +117,6 @@ const AttendanceCard = () => {
             </h5>
             <small className="opacity-75">Track your work hours</small>
           </div>
-          {/* Status indicator */}
           <div className="text-end">
             <span className={`badge bg-${statusDisplay.color} bg-opacity-75`}>
               <i className={`bi ${statusDisplay.icon} me-1`}></i>
@@ -158,56 +127,6 @@ const AttendanceCard = () => {
       </div>
 
       <div className="card-body">
-        {/* Error Alert - Only show real errors, not sync issues */}
-
-        {error && !error.includes("Refreshing") && (
-          <div
-            className="alert alert-danger alert-dismissible fade show mb-3"
-            role="alert"
-          >
-            <i className="bi bi-exclamation-triangle-fill me-2"></i>
-            {error}
-            <button
-              type="button"
-              className="btn-close"
-              onClick={clearError}
-              aria-label="Close"
-            ></button>
-          </div>
-        )}
-
-        {/* Warning Alerts - Only show important warnings */}
-        {warnings.length > 0 &&
-          warnings.some(
-            (w) =>
-              !w.includes("server maintenance") &&
-              !w.includes("temporarily unavailable")
-          ) && (
-            <div
-              className="alert alert-warning alert-dismissible fade show mb-3"
-              role="alert"
-            >
-              <i className="bi bi-exclamation-triangle me-2"></i>
-              <div>
-                {warnings
-                  .filter(
-                    (w) =>
-                      !w.includes("server maintenance") &&
-                      !w.includes("temporarily unavailable")
-                  )
-                  .map((warning, index) => (
-                    <div key={index}>{warning}</div>
-                  ))}
-              </div>
-              <button
-                type="button"
-                className="btn-close"
-                onClick={clearWarnings}
-                aria-label="Close"
-              ></button>
-            </div>
-          )}
-
         {/* Current Time */}
         <div className="text-center mb-4">
           <div className="display-6 fw-bold text-success">
@@ -222,7 +141,6 @@ const AttendanceCard = () => {
             <i className={`bi ${statusDisplay.icon} me-2`}></i>
             {statusDisplay.text}
           </span>
-          {/* Refresh button for status sync */}
           <div className="mt-2">
             <button
               className="btn btn-outline-secondary btn-sm"
@@ -283,24 +201,6 @@ const AttendanceCard = () => {
               {dailySummary.totalHours}
             </div>
             <small className="text-muted">Hours Worked Today</small>
-            {/* Show data source indicator */}
-            {dailySummary._source && (
-              <div className="mt-1">
-                <small className="text-muted opacity-75">
-                  {dailySummary._source === "fallback-records" ? (
-                    <span title="Calculated from attendance records">
-                      <i className="bi bi-calculator me-1"></i>
-                      Calculated
-                    </span>
-                  ) : (
-                    <span title="From server">
-                      <i className="bi bi-server me-1"></i>
-                      Live
-                    </span>
-                  )}
-                </small>
-              </div>
-            )}
           </div>
         )}
 
@@ -359,22 +259,6 @@ const AttendanceCard = () => {
               "You've completed your work day. Great job!"}
           </small>
         </div>
-
-        {/* Server Status Indicator */}
-        {warnings.some(
-          (w) =>
-            w.includes("server maintenance") ||
-            w.includes("temporarily unavailable")
-        ) && (
-          <div className="mt-3 p-2 bg-warning bg-opacity-10 rounded">
-            <div className="d-flex align-items-center">
-              <i className="bi bi-exclamation-triangle text-warning me-2"></i>
-              <small className="text-muted">
-                Some features may be limited due to server maintenance
-              </small>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

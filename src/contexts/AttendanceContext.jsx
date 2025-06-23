@@ -28,7 +28,6 @@ export const AttendanceProvider = ({ children }) => {
   const [monthlyStats, setMonthlyStats] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [warnings, setWarnings] = useState([]);
   const [lastFetch, setLastFetch] = useState({
     records: null,
     summary: null,
@@ -40,34 +39,70 @@ export const AttendanceProvider = ({ children }) => {
     setError(null);
   }, []);
 
-  // Clear warnings function
-  const clearWarnings = useCallback(() => {
-    setWarnings([]);
-  }, []);
-
-  // Add warning function
-  const addWarning = useCallback((warning) => {
-    setWarnings((prev) => {
-      // Avoid duplicate warnings
-      if (prev.includes(warning)) {
-        return prev;
-      }
-      return [...prev, warning];
-    });
-  }, []);
-
   // Check if we need to refresh data (5 minutes cache)
   const shouldRefresh = useCallback((lastFetchTime) => {
     if (!lastFetchTime) return true;
     return Date.now() - lastFetchTime > 5 * 60 * 1000; // 5 minutes
   }, []);
 
-  // Fetch attendance records - MOVED UP BEFORE IT'S USED
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDateString = useCallback(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  }, []);
+
+  // Helper function to format date properly
+  const formatDateForAPI = useCallback(
+    (date) => {
+      if (!date) {
+        return getTodayDateString();
+      }
+
+      if (typeof date === "string") {
+        // If it's already a string, validate it's in YYYY-MM-DD format
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (dateRegex.test(date)) {
+          return date;
+        }
+        // Try to parse the string as a date
+        const parsedDate = new Date(date);
+        if (isNaN(parsedDate.getTime())) {
+          console.warn(
+            "Invalid date string provided:",
+            date,
+            "using today instead"
+          );
+          return getTodayDateString();
+        }
+        return parsedDate.toISOString().split("T")[0];
+      }
+
+      if (date instanceof Date) {
+        if (isNaN(date.getTime())) {
+          console.warn(
+            "Invalid Date object provided:",
+            date,
+            "using today instead"
+          );
+          return getTodayDateString();
+        }
+        return date.toISOString().split("T")[0];
+      }
+
+      console.warn(
+        "Invalid date parameter provided:",
+        date,
+        "using today instead"
+      );
+      return getTodayDateString();
+    },
+    [getTodayDateString]
+  );
+
+  // Fetch attendance records
   const fetchAttendanceRecords = useCallback(
     async (startDate = null, endDate = null, force = false) => {
-      // Prevent unnecessary fetches
       if (!force && !shouldRefresh(lastFetch.records)) {
-        console.log("📅 Using cached attendance records");
         return;
       }
 
@@ -75,7 +110,6 @@ export const AttendanceProvider = ({ children }) => {
         setIsLoading(true);
         setError(null);
 
-        console.log("📅 Fetching attendance records...");
         const result = await attendanceService.getAttendanceRecords(
           startDate,
           endDate
@@ -84,23 +118,16 @@ export const AttendanceProvider = ({ children }) => {
         if (result.success) {
           setAttendanceRecords(result.data || []);
           setLastFetch((prev) => ({ ...prev, records: Date.now() }));
-
-          // Handle warnings
-          if (result.warning) {
-            addWarning(result.warning);
-            toast.error(result.warning, { duration: 3000 });
-          }
-
-          console.log(
-            "📅 Attendance records fetched successfully:",
-            result.data?.length || 0
-          );
         } else {
           setError(result.error);
-          toast.error(result.error);
+          if (
+            result.error &&
+            !result.error.includes("temporarily unavailable")
+          ) {
+            toast.error(result.error);
+          }
         }
       } catch (error) {
-        console.error("📅 Failed to fetch attendance records:", error);
         const errorMessage = "Failed to fetch attendance records.";
         setError(errorMessage);
         toast.error(errorMessage);
@@ -108,73 +135,101 @@ export const AttendanceProvider = ({ children }) => {
         setIsLoading(false);
       }
     },
-    [shouldRefresh, lastFetch.records, addWarning]
+    [shouldRefresh, lastFetch.records]
   );
 
-  // Fetch daily summary - IMPROVED warning handling
+  // Fetch daily summary with proper date handling
   const fetchDailySummary = useCallback(
     async (date = null, force = false) => {
       if (!force && !shouldRefresh(lastFetch.summary)) {
-        console.log("📊 Using cached daily summary");
         return;
       }
 
       try {
         setIsLoading(true);
 
-        console.log("📊 Fetching daily summary...");
-        const result = await attendanceService.getDailySummary(date);
+        // TEMPORARY: Skip API call and use calculated summary instead
+        // This avoids the server timestamp parsing error
+        console.log(
+          "📊 Using calculated daily summary instead of API due to server issue"
+        );
+
+        const targetDate = date ? formatDateForAPI(date) : getTodayDateString();
+        const calculatedSummary = calculateDailySummaryFromRecords(
+          attendanceRecords,
+          targetDate
+        );
+
+        if (calculatedSummary) {
+          setDailySummary(calculatedSummary);
+          setLastFetch((prev) => ({ ...prev, summary: Date.now() }));
+          console.log("📊 Using calculated daily summary:", calculatedSummary);
+          return;
+        }
+
+        // If no calculated summary available, try the API with explicit date
+        const formattedDate = date
+          ? formatDateForAPI(date)
+          : getTodayDateString();
+
+        console.log("📊 Fetching daily summary for date:", formattedDate);
+
+        const result = await attendanceService.getDailySummary(formattedDate);
 
         if (result.success) {
           if (result.data) {
             setDailySummary(result.data);
           } else {
-            console.log("📊 No API data, calculating from records...");
+            // Try to calculate from records if API returns no data
             const calculatedSummary = calculateDailySummaryFromRecords(
               attendanceRecords,
-              date
+              formattedDate
             );
             setDailySummary(calculatedSummary);
           }
 
           setLastFetch((prev) => ({ ...prev, summary: Date.now() }));
+        } else {
+          // For daily summary errors, try to calculate from records as fallback
+          const calculatedSummary = calculateDailySummaryFromRecords(
+            attendanceRecords,
+            formattedDate
+          );
 
-          // Handle warnings - but don't show toast for server maintenance warnings
-          if (result.warning) {
-            console.warn("📊 Daily summary warning:", result.warning);
-            // Only add to warnings array, don't show toast for maintenance issues
+          if (calculatedSummary) {
+            setDailySummary(calculatedSummary);
+            // Don't show error if we have a fallback
+          } else {
+            setError(result.error);
             if (
-              !result.warning.includes("server maintenance") &&
-              !result.warning.includes("temporarily unavailable")
+              result.error &&
+              !result.error.includes("temporarily unavailable")
             ) {
-              addWarning(result.warning);
+              toast.error(result.error);
             }
           }
-
-          console.log("📊 Daily summary processed successfully");
-        } else {
-          setError(result.error);
-          toast.error(result.error);
         }
       } catch (error) {
-        console.error("📊 Failed to fetch daily summary:", error);
+        console.error("📊 Daily summary fetch error:", error);
 
         // Try to calculate from existing records as final fallback
         try {
+          const formattedDate = date
+            ? formatDateForAPI(date)
+            : getTodayDateString();
           const calculatedSummary = calculateDailySummaryFromRecords(
             attendanceRecords,
-            date
+            formattedDate
           );
           if (calculatedSummary) {
             setDailySummary(calculatedSummary);
-            console.log("📊 Using calculated summary as fallback");
           } else {
-            const errorMessage = "Failed to fetch daily summary.";
+            const errorMessage = "Unable to load daily summary.";
             setError(errorMessage);
             toast.error(errorMessage);
           }
         } catch (calcError) {
-          const errorMessage = "Failed to fetch daily summary.";
+          const errorMessage = "Unable to load daily summary.";
           setError(errorMessage);
           toast.error(errorMessage);
         }
@@ -182,44 +237,71 @@ export const AttendanceProvider = ({ children }) => {
         setIsLoading(false);
       }
     },
-    [shouldRefresh, lastFetch.summary, addWarning, attendanceRecords]
+    [
+      shouldRefresh,
+      lastFetch.summary,
+      attendanceRecords,
+      formatDateForAPI,
+      getTodayDateString,
+    ]
   );
 
-  // Fetch monthly stats - MOVED UP BEFORE IT'S USED
+  // Fetch monthly stats
   const fetchMonthlyStats = useCallback(
     async (year = null, month = null, force = false) => {
-      // Prevent unnecessary fetches
       if (!force && !shouldRefresh(lastFetch.stats)) {
-        console.log("📊 Using cached monthly stats");
         return;
       }
 
       try {
         setIsLoading(true);
 
-        console.log("📊 Fetching monthly stats...");
-        const result = await attendanceService.getMonthlyStats(year, month);
+        // Ensure year and month are valid numbers if provided
+        const currentDate = new Date();
+        const validYear =
+          year && !isNaN(year) ? parseInt(year) : currentDate.getFullYear();
+        const validMonth =
+          month && !isNaN(month) ? parseInt(month) : currentDate.getMonth() + 1;
+
+        console.log("📊 Fetching monthly stats for:", validYear, validMonth);
+
+        const result = await attendanceService.getMonthlyStats(
+          validYear,
+          validMonth
+        );
 
         if (result.success) {
           setMonthlyStats(result.data);
           setLastFetch((prev) => ({ ...prev, stats: Date.now() }));
-
-          // Handle warnings - don't show toast for server issues
-          if (result.warning) {
-            console.warn("📊 Monthly stats warning:", result.warning);
-            // Only add to warnings, don't show intrusive toasts
-          }
-
-          console.log("📊 Monthly stats fetched successfully:", result.data);
         } else {
-          setError(result.error);
-          toast.error(result.error);
+          // For monthly stats, don't show errors to user - just use defaults
+          setMonthlyStats({
+            totalDays: 0,
+            totalHours: "0:00",
+            averageHours: "0:00",
+            attendanceRate: "0%",
+            presentDays: 0,
+            absentDays: 0,
+            incompleteDays: 0,
+            totalDaysInMonth: 0,
+            workingDaysInMonth: 0,
+          });
         }
       } catch (error) {
-        console.error("📊 Failed to fetch monthly stats:", error);
-        const errorMessage = "Failed to fetch monthly statistics.";
-        setError(errorMessage);
-        toast.error(errorMessage);
+        console.error("📊 Monthly stats fetch error:", error);
+
+        // Set default stats on error
+        setMonthlyStats({
+          totalDays: 0,
+          totalHours: "0:00",
+          averageHours: "0:00",
+          attendanceRate: "0%",
+          presentDays: 0,
+          absentDays: 0,
+          incompleteDays: 0,
+          totalDaysInMonth: 0,
+          workingDaysInMonth: 0,
+        });
       } finally {
         setIsLoading(false);
       }
@@ -227,13 +309,12 @@ export const AttendanceProvider = ({ children }) => {
     [shouldRefresh, lastFetch.stats]
   );
 
-  // Check in - IMPROVED with auto-refresh on mismatch
+  // Check in
   const checkIn = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      console.log("🟢 Attempting check-in...");
       const result = await attendanceService.checkIn();
 
       if (result.success) {
@@ -242,38 +323,30 @@ export const AttendanceProvider = ({ children }) => {
         // Refresh data after successful check-in
         await Promise.all([
           fetchAttendanceRecords(null, null, true),
-          fetchDailySummary(null, true),
-          fetchMonthlyStats(null, null, true),
+          fetchDailySummary(null, true), // Pass null to use today's date
         ]);
+
+        // Try to refresh monthly stats but don't wait for it
+        fetchMonthlyStats(null, null, true).catch(() => {});
 
         return { success: true, data: result.data };
       } else {
-        // Check if we need to refresh due to state mismatch
         if (result.needsRefresh) {
-          console.log("🔄 State mismatch detected, refreshing data...");
-
-          // Show a brief message
           toast.loading("Refreshing your status...", { duration: 1500 });
 
-          // Refresh data to get current state
           await Promise.all([
             fetchAttendanceRecords(null, null, true),
             fetchDailySummary(null, true),
           ]);
 
-          // Don't show the error as a persistent error, just log it
-          console.log("🔄 Status refreshed due to:", result.error);
-
           return { success: false, error: result.error, refreshed: true };
         } else {
-          // Show actual errors
           setError(result.error);
           toast.error(result.error);
           return { success: false, error: result.error };
         }
       }
     } catch (error) {
-      console.error("🟢 Check-in failed:", error);
       const errorMessage = "Check-in failed. Please try again.";
       setError(errorMessage);
       toast.error(errorMessage);
@@ -283,13 +356,12 @@ export const AttendanceProvider = ({ children }) => {
     }
   }, [fetchAttendanceRecords, fetchDailySummary, fetchMonthlyStats]);
 
-  // Check out - IMPROVED with auto-refresh on mismatch
+  // Check out
   const checkOut = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      console.log("🔴 Attempting check-out...");
       const result = await attendanceService.checkOut();
 
       if (result.success) {
@@ -298,38 +370,30 @@ export const AttendanceProvider = ({ children }) => {
         // Refresh data after successful check-out
         await Promise.all([
           fetchAttendanceRecords(null, null, true),
-          fetchDailySummary(null, true),
-          fetchMonthlyStats(null, null, true),
+          fetchDailySummary(null, true), // Pass null to use today's date
         ]);
+
+        // Try to refresh monthly stats but don't wait for it
+        fetchMonthlyStats(null, null, true).catch(() => {});
 
         return { success: true, data: result.data };
       } else {
-        // Check if we need to refresh due to state mismatch
         if (result.needsRefresh) {
-          console.log("🔄 State mismatch detected, refreshing data...");
-
-          // Show a brief message
           toast.loading("Refreshing your status...", { duration: 1500 });
 
-          // Refresh data to get current state
           await Promise.all([
             fetchAttendanceRecords(null, null, true),
             fetchDailySummary(null, true),
           ]);
 
-          // Don't show the error as a persistent error, just log it
-          console.log("🔄 Status refreshed due to:", result.error);
-
           return { success: false, error: result.error, refreshed: true };
         } else {
-          // Show actual errors
           setError(result.error);
           toast.error(result.error);
           return { success: false, error: result.error };
         }
       }
     } catch (error) {
-      console.error("🔴 Check-out failed:", error);
       const errorMessage = "Check-out failed. Please try again.";
       setError(errorMessage);
       toast.error(errorMessage);
@@ -339,9 +403,8 @@ export const AttendanceProvider = ({ children }) => {
     }
   }, [fetchAttendanceRecords, fetchDailySummary, fetchMonthlyStats]);
 
-  // Get current attendance status - IMPROVED with fallback
+  // Get current attendance status
   const getCurrentStatus = useCallback(() => {
-    // Try to use daily summary first
     if (dailySummary) {
       switch (dailySummary.status) {
         case "completed":
@@ -361,11 +424,10 @@ export const AttendanceProvider = ({ children }) => {
       }
     }
 
-    // Fallback to calculating from attendance records
     return getAttendanceStatusForDate(attendanceRecords);
   }, [dailySummary, attendanceRecords]);
 
-  // Memoize the context value to prevent unnecessary re-renders
+  // Memoize the context value
   const contextValue = useMemo(
     () => ({
       // State
@@ -374,7 +436,6 @@ export const AttendanceProvider = ({ children }) => {
       monthlyStats,
       isLoading,
       error,
-      warnings,
 
       // Actions
       fetchAttendanceRecords,
@@ -383,7 +444,6 @@ export const AttendanceProvider = ({ children }) => {
       checkIn,
       checkOut,
       clearError,
-      clearWarnings,
       getCurrentStatus,
 
       // Utilities
@@ -395,14 +455,12 @@ export const AttendanceProvider = ({ children }) => {
       monthlyStats,
       isLoading,
       error,
-      warnings,
       fetchAttendanceRecords,
       fetchDailySummary,
       fetchMonthlyStats,
       checkIn,
       checkOut,
       clearError,
-      clearWarnings,
       getCurrentStatus,
       lastFetch,
     ]
