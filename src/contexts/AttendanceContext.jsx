@@ -148,12 +148,6 @@ export const AttendanceProvider = ({ children }) => {
       try {
         setIsLoading(true);
 
-        // TEMPORARY: Skip API call and use calculated summary instead
-        // This avoids the server timestamp parsing error
-        console.log(
-          "📊 Using calculated daily summary instead of API due to server issue"
-        );
-
         const targetDate = date ? formatDateForAPI(date) : getTodayDateString();
         const calculatedSummary = calculateDailySummaryFromRecords(
           attendanceRecords,
@@ -163,7 +157,6 @@ export const AttendanceProvider = ({ children }) => {
         if (calculatedSummary) {
           setDailySummary(calculatedSummary);
           setLastFetch((prev) => ({ ...prev, summary: Date.now() }));
-          console.log("📊 Using calculated daily summary:", calculatedSummary);
           return;
         }
 
@@ -171,8 +164,6 @@ export const AttendanceProvider = ({ children }) => {
         const formattedDate = date
           ? formatDateForAPI(date)
           : getTodayDateString();
-
-        console.log("📊 Fetching daily summary for date:", formattedDate);
 
         const result = await attendanceService.getDailySummary(formattedDate);
 
@@ -262,8 +253,6 @@ export const AttendanceProvider = ({ children }) => {
           year && !isNaN(year) ? parseInt(year) : currentDate.getFullYear();
         const validMonth =
           month && !isNaN(month) ? parseInt(month) : currentDate.getMonth() + 1;
-
-        console.log("📊 Fetching monthly stats for:", validYear, validMonth);
 
         const result = await attendanceService.getMonthlyStats(
           validYear,

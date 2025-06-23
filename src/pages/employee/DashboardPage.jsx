@@ -48,8 +48,6 @@ const DashboardContent = () => {
     if (!hasInitialized) {
       const initializeDashboard = async () => {
         try {
-          console.log("🚀 Initializing dashboard data...");
-
           // Always try to fetch records first as they're most important
           await fetchAttendanceRecords();
 
@@ -80,7 +78,6 @@ const DashboardContent = () => {
           }
 
           setHasInitialized(true);
-          console.log("✅ Dashboard initialized successfully");
         } catch (error) {
           console.error("❌ Dashboard initialization failed:", error);
           setHasInitialized(true); // Set to true anyway to prevent infinite loop
@@ -97,7 +94,6 @@ const DashboardContent = () => {
   ]);
 
   const handleRefresh = useCallback(async () => {
-    console.log("🔄 Manual refresh triggered");
     try {
       await fetchAttendanceRecords(null, null, true);
 

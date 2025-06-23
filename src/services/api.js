@@ -18,7 +18,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('API Request:', config.method?.toUpperCase(), config.url);
     return config;
   },
   (error) => {
@@ -30,7 +29,6 @@ api.interceptors.request.use(
 // Response interceptor to handle auth errors
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.config.url);
     return response;
   },
   (error) => {
@@ -40,7 +38,6 @@ api.interceptors.response.use(
       // Only clear auth data and redirect if we're not already on login page
       const currentPath = window.location.pathname;
       if (currentPath !== '/login' && currentPath !== '/register') {
-        console.log('401 error: clearing auth data and redirecting to login');
         localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
         localStorage.removeItem(STORAGE_KEYS.USER_DATA);
         window.location.href = '/login';

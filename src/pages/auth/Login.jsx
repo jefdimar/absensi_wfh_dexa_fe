@@ -43,15 +43,12 @@ const Login = () => {
       clearErrors();
       clearError();
 
-      console.log("Login form submitted:", { email: data.email });
-
       const result = await login({
         email: data.email,
         password: data.password,
       });
 
       if (result.success) {
-        console.log("Login successful, redirecting to:", from);
         navigate(from, { replace: true });
       } else {
         // Handle login failure

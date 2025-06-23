@@ -18,7 +18,6 @@ attendanceApi.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('🚀 Attendance API Request:', config.method?.toUpperCase(), config.baseURL + config.url);
     return config;
   },
   (error) => {
@@ -30,8 +29,6 @@ attendanceApi.interceptors.request.use(
 // Response interceptor
 attendanceApi.interceptors.response.use(
   (response) => {
-    console.log('✅ Attendance API Response:', response.status, response.config.url);
-    console.log('📄 Response Data:', response.data);
     return response;
   },
   (error) => {
@@ -135,7 +132,6 @@ export const attendanceService = {
 
   // Get daily summary - ALWAYS provide a date parameter
   getDailySummary: async (date = null) => {
-    console.log('📊 Requesting daily summary for date:', date);
 
     try {
       // ALWAYS provide a date parameter - never call the API without one
@@ -181,12 +177,8 @@ export const attendanceService = {
 
       // ALWAYS include the date parameter
       const url = `/attendance/summary/daily?date=${dateStr}`;
-      console.log('📊 Fetching from URL:', url);
-      console.log('📊 Using validated date string:', dateStr);
 
       const response = await attendanceApi.get(url);
-
-      console.log('📊 Daily summary API response:', response.data);
 
       const apiData = response.data;
 
@@ -249,14 +241,11 @@ export const attendanceService = {
             transformedData.status = 'not-started';
         }
 
-        console.log('📊 Transformed daily summary:', transformedData);
-
         return {
           success: true,
           data: transformedData,
         };
       } else {
-        console.log('📊 No data in API response');
         return {
           success: true,
           data: null,
@@ -310,10 +299,7 @@ export const attendanceService = {
     try {
       let url = '/attendance/my-records';
 
-      console.log('📅 Requesting attendance records from:', url);
       const response = await attendanceApi.get(url);
-
-      console.log('📅 Attendance records API response:', response.data);
 
       const recordsData = response.data;
 
@@ -323,15 +309,11 @@ export const attendanceService = {
           new Date(b.timestamp) - new Date(a.timestamp)
         );
 
-        console.log('📅 Processed records:', sortedRecords.length);
-
         return {
           success: true,
           data: sortedRecords,
         };
       }
-
-      console.log('📅 No records found or unexpected format');
       return {
         success: true,
         data: [],
@@ -381,10 +363,7 @@ export const attendanceService = {
         url += `?${params.toString()}`;
       }
 
-      console.log('📊 Requesting monthly stats from:', url);
       const response = await attendanceApi.get(url);
-
-      console.log('📊 Monthly stats API response:', response.data);
 
       const apiData = response.data;
 
@@ -418,8 +397,6 @@ export const attendanceService = {
           workingDaysInMonth: apiData.totalDays || 0,
           _raw: apiData,
         };
-
-        console.log('📊 Normalized stats:', normalizedStats);
 
         return {
           success: true,

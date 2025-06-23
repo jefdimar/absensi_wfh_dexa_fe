@@ -37,10 +37,8 @@ export const AuthProvider = ({ children }) => {
             if (result.success) {
               setUser(result.data);
               setIsAuthenticated(true);
-              console.log("Auth initialized successfully:", result.data);
             } else {
               // Token is invalid, clear storage
-              console.log("Token validation failed, clearing storage");
               localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
               localStorage.removeItem(STORAGE_KEYS.USER_DATA);
               setUser(null);
@@ -48,16 +46,11 @@ export const AuthProvider = ({ children }) => {
             }
           } catch (profileError) {
             // If profile fetch fails, try to use stored data temporarily
-            console.log(
-              "Profile fetch failed, using stored data:",
-              profileError
-            );
             try {
               const parsedUserData = JSON.parse(userData);
               setUser(parsedUserData);
               setIsAuthenticated(true);
             } catch (parseError) {
-              console.log("Failed to parse stored user data:", parseError);
               localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
               localStorage.removeItem(STORAGE_KEYS.USER_DATA);
               setUser(null);
@@ -65,7 +58,6 @@ export const AuthProvider = ({ children }) => {
             }
           }
         } else {
-          console.log("No token or user data found");
           setUser(null);
           setIsAuthenticated(false);
         }
@@ -189,12 +181,7 @@ export const AuthProvider = ({ children }) => {
       // Call logout API (optional, don't fail if it doesn't work)
       try {
         await authService.logout();
-      } catch (logoutError) {
-        console.log(
-          "Logout API call failed, but continuing with local cleanup:",
-          logoutError
-        );
-      }
+      } catch (logoutError) {}
 
       // Clear local storage
       localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);

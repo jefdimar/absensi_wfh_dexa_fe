@@ -44,12 +44,6 @@ const Register = () => {
       clearErrors();
       clearError();
 
-      console.log("Register form submitted:", {
-        name: data.name,
-        email: data.email,
-        position: data.position,
-      });
-
       const result = await registerUser({
         name: data.name,
         email: data.email,
@@ -59,7 +53,6 @@ const Register = () => {
       });
 
       if (result.success) {
-        console.log("Registration successful");
         // Show success message and redirect to login
         navigate(ROUTES.LOGIN, {
           state: {
