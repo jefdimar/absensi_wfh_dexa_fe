@@ -33,25 +33,6 @@ const QuickActions = ({ onExportData, hasData }) => {
                   View All Attendance
                 </Link>
               </div>
-              <div className="col-md-3 mb-2">
-                <button
-                  className="btn btn-outline-success w-100"
-                  onClick={onExportData}
-                  disabled={!hasData}
-                >
-                  <i className="bi bi-download me-1"></i>
-                  Export Data
-                </button>
-              </div>
-              <div className="col-md-3 mb-2">
-                <button
-                  className="btn btn-outline-info w-100"
-                  onClick={() => toast.info("Reports feature coming soon!")}
-                >
-                  <i className="bi bi-file-earmark-text me-1"></i>
-                  Generate Reports
-                </button>
-              </div>
             </div>
           </div>
         </div>

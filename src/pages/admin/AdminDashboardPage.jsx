@@ -10,7 +10,6 @@ import {
   StatsCards,
   QuickActions,
   AttendanceTable,
-  DebugPanel,
 } from "../../components/admin";
 
 // Hooks
@@ -130,14 +129,6 @@ const AdminDashboardPage = () => {
           </div>
         </div>
       </div>
-
-      {/* Debug Panel */}
-      <DebugPanel
-        user={user}
-        stats={stats}
-        selectedDate={selectedDate}
-        derivedStats={derivedStats}
-      />
     </div>
   );
 };
