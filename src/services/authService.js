@@ -1,51 +1,72 @@
 import api from './api';
-import { API_ROUTES } from '../constants';
+import { API_ENDPOINTS } from '../constants';
 
 export const authService = {
   // Login user
   login: async (credentials) => {
     try {
-      const response = await api.post('/auth/login', {
-        email: credentials.email,
-        password: credentials.password,
+      const response = await api.post(API_ENDPOINTS.AUTH.LOGIN, credentials);
+
+      console.log('authService: Raw login response:', response.data);
+
+      // Handle the response structure: { employee: {...}, accessToken: "..." }
+      let userData, token;
+
+      if (response.data.employee && response.data.accessToken) {
+        // Structure: { employee: {...}, accessToken: "..." }
+        userData = response.data.employee;
+        token = response.data.accessToken;
+        console.log('authService: Using employee + accessToken structure');
+      } else if (response.data.user && response.data.token) {
+        // Structure: { user: {...}, token: "..." }
+        userData = response.data.user;
+        token = response.data.token;
+        console.log('authService: Using user + token structure');
+      } else if (response.data.user && response.data.accessToken) {
+        // Structure: { user: {...}, accessToken: "..." }
+        userData = response.data.user;
+        token = response.data.accessToken;
+        console.log('authService: Using user + accessToken structure');
+      } else if (response.data.accessToken) {
+        // Structure: { id, name, email, ..., accessToken: "..." }
+        const { accessToken, ...user } = response.data;
+        userData = user;
+        token = accessToken;
+        console.log('authService: Using flat structure with accessToken');
+      } else {
+        console.error('authService: Unknown response structure:', response.data);
+        throw new Error('Invalid response structure from server');
+      }
+
+      console.log('authService: Processed login data:', {
+        userData,
+        token: token ? 'present' : 'missing',
+        userKeys: userData ? Object.keys(userData) : 'no userData'
       });
 
-      const { accessToken, employee } = response.data;
-
-      if (!accessToken || !employee) {
-        throw new Error('Invalid response format');
+      // Ensure userData has required fields
+      if (!userData || !userData.id) {
+        console.error('authService: Invalid user data:', userData);
+        throw new Error('Invalid user data received from server');
       }
 
       return {
         success: true,
-        data: {
-          token: accessToken,
-          user: {
-            id: employee.id,
-            name: employee.name,
-            email: employee.email,
-            position: employee.position,
-            phoneNumber: employee.phoneNumber,
-            role: employee.role || 'employee', // Default to employee if no role
-          },
-        },
+        data: { user: userData, token }
       };
     } catch (error) {
-      console.error('Login API error:', error);
+      console.error('authService: Login error:', error);
 
-      let errorMessage = 'Login failed. Please try again.';
-
+      let errorMessage = 'Login failed';
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
-      } else if (error.response?.status === 401) {
-        errorMessage = 'Invalid email or password.';
-      } else if (error.response?.status === 400) {
-        errorMessage = 'Please provide valid email and password.';
+      } else if (error.message) {
+        errorMessage = error.message;
       }
 
       return {
         success: false,
-        error: errorMessage,
+        error: errorMessage
       };
     }
   },
@@ -57,8 +78,8 @@ export const authService = {
         name: userData.name,
         email: userData.email,
         password: userData.password,
-        position: userData.position || 'Employee', // Default position
-        phoneNumber: userData.phoneNumber || '', // Optional phone number
+        position: userData.position || 'Employee',
+        phoneNumber: userData.phoneNumber || '',
       });
 
       return {
@@ -88,11 +109,9 @@ export const authService = {
   // Logout user
   logout: async () => {
     try {
-      // If you have a logout endpoint
       await api.post('/auth/logout');
       return { success: true };
     } catch (error) {
-      // Even if logout fails on server, we'll clear local data
       console.error('Logout API error:', error);
       return { success: true };
     }
@@ -102,6 +121,8 @@ export const authService = {
   getProfile: async () => {
     try {
       const response = await api.get('/auth/profile');
+
+      console.log('authService: Profile response:', response.data);
 
       return {
         success: true,
@@ -116,7 +137,6 @@ export const authService = {
       };
     } catch (error) {
       console.error('Get profile API error:', error);
-
       return {
         success: false,
         error: 'Failed to fetch profile data.',

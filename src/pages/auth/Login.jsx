@@ -1,237 +1,181 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useForm } from "react-hook-form";
 import { useAuth } from "../../contexts/AuthContext";
-import { ButtonLoading } from "../../components/ui/Loading";
-import { ROUTES } from "../../constants";
+
+import toast from "react-hot-toast";
 
 const Login = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading, error, clearError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { login, isLoading } = useAuth();
 
-  // Get the page user was trying to access before login
-  const from = location.state?.from?.pathname || ROUTES.DASHBOARD;
-  // Get success message from registration
-  const successMessage = location.state?.message;
-  const messageType = location.state?.type;
-
-  // React Hook Form setup
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    setError,
-    clearErrors,
-  } = useForm({
-    defaultValues: {
-      email: "",
-      password: "",
-      remember: false,
-    },
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
   });
 
-  // Clear errors when component mounts
-  useEffect(() => {
-    clearError();
-  }, [clearError]);
+  const [errors, setErrors] = useState({});
 
-  // Handle form submission
-  const onSubmit = async (data) => {
-    try {
-      clearErrors();
-      clearError();
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
 
-      const result = await login({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (result.success) {
-        navigate(from, { replace: true });
-      } else {
-        // Handle login failure
-        setError("root", {
-          type: "manual",
-          message: result.error || "Login failed",
-        });
-      }
-    } catch (error) {
-      console.error("Login submission error:", error);
-      setError("root", {
-        type: "manual",
-        message: "An unexpected error occurred",
-      });
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
     }
   };
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.email) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Email is invalid";
+    }
+
+    if (!formData.password) {
+      newErrors.password = "Password is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      console.log("Login: Attempting login with:", { email: formData.email });
+
+      const result = await login(formData);
+      console.log("Login: Login result:", result);
+
+      if (result.success && result.user) {
+        // Get the intended destination or default based on user role
+        const from = location.state?.from?.pathname;
+        console.log("Login: Redirect from:", from);
+        console.log("Login: User role:", result.user?.role);
+        console.log("Login: User email:", result.user?.email);
+
+        let redirectTo;
+        // Check if user is admin
+        const isAdmin =
+          result.user.role === "admin" ||
+          result.user.email === "admin@superadmin.com" ||
+          result.user.email?.toLowerCase().includes("admin");
+
+        console.log("Login: Is admin check:", isAdmin);
+
+        if (from && from !== "/login" && from !== "/register") {
+          // If there was an intended destination, go there
+          redirectTo = from;
+        } else if (isAdmin) {
+          // If admin and no specific destination, go to admin dashboard
+          redirectTo = "/admin/dashboard";
+        } else {
+          // Regular user goes to employee dashboard
+          redirectTo = "/dashboard";
+        }
+
+        console.log("Login: Redirecting to:", redirectTo);
+
+        // Add a small delay to ensure state is updated
+        setTimeout(() => {
+          navigate(redirectTo, { replace: true });
+        }, 100);
+      } else {
+        console.error("Login: Login failed or no user data:", result);
+        toast.error(result.error || "Login failed");
+      }
+    } catch (error) {
+      console.error("Login: Error during login:", error);
+      toast.error("Login failed. Please try again.");
+    }
   };
 
   return (
     <div className="min-vh-100 d-flex align-items-center bg-light">
       <div className="container">
         <div className="row justify-content-center">
-          <div className="col-md-6 col-lg-5">
-            <div className="card shadow-lg border-0">
-              <div className="card-body p-5">
-                {/* Header */}
+          <div className="col-md-6 col-lg-4">
+            <div className="card shadow">
+              <div className="card-body p-4">
                 <div className="text-center mb-4">
-                  <div
-                    className="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                    style={{ width: "60px", height: "60px" }}
-                  >
-                    <i className="bi bi-clock" style={{ fontSize: "24px" }}></i>
-                  </div>
-                  <h2 className="fw-bold text-dark mb-2">Welcome Back</h2>
+                  <h2 className="card-title">Sign In</h2>
                   <p className="text-muted">
-                    Sign in to your WFH Attendance account
+                    Welcome back! Please sign in to your account.
                   </p>
                 </div>
 
-                {/* Success Alert (from registration) */}
-                {successMessage && messageType === "success" && (
-                  <div
-                    className="alert alert-success d-flex align-items-center mb-4"
-                    role="alert"
-                  >
-                    <i className="bi bi-check-circle-fill me-2"></i>
-                    <div>{successMessage}</div>
-                  </div>
-                )}
-
-                {/* Error Alert */}
-                {(error || errors.root) && (
-                  <div
-                    className="alert alert-danger d-flex align-items-center mb-4"
-                    role="alert"
-                  >
-                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                    <div>{error || errors.root?.message}</div>
-                  </div>
-                )}
-
-                {/* Login Form */}
-                <form onSubmit={handleSubmit(onSubmit)} noValidate>
-                  {/* Email Field */}
+                <form onSubmit={handleSubmit}>
                   <div className="mb-3">
-                    <label htmlFor="email" className="form-label fw-semibold">
+                    <label htmlFor="email" className="form-label">
                       Email Address
                     </label>
-                    <div className="input-group">
-                      <span className="input-group-text bg-light border-end-0">
-                        <i className="bi bi-envelope text-muted"></i>
-                      </span>
-                      <input
-                        type="email"
-                        className={`form-control border-start-0 ${
-                          errors.email ? "is-invalid" : ""
-                        }`}
-                        id="email"
-                        placeholder="Enter your email"
-                        {...register("email", {
-                          required: "Email is required",
-                          pattern: {
-                            value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                            message: "Please enter a valid email address",
-                          },
-                        })}
-                        disabled={isLoading || isSubmitting}
-                      />
-                      {errors.email && (
-                        <div className="invalid-feedback">
-                          {errors.email.message}
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Password Field */}
+                    <input
+                      type="email"
+                      className={`form-control ${
+                        errors.email ? "is-invalid" : ""
+                      }`}
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="Enter your email"
+                      disabled={isLoading}
+                    />
+                    {errors.email && (
+                      <div className="invalid-feedback">{errors.email}</div>
+                    )}
+                  </div>
                   <div className="mb-3">
-                    <label
-                      htmlFor="password"
-                      className="form-label fw-semibold"
-                    >
+                    <label htmlFor="password" className="form-label">
                       Password
                     </label>
-                    <div className="input-group">
-                      <span className="input-group-text bg-light border-end-0">
-                        <i className="bi bi-lock text-muted"></i>
-                      </span>
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        className={`form-control border-start-0 border-end-0 ${
-                          errors.password ? "is-invalid" : ""
-                        }`}
-                        id="password"
-                        placeholder="Enter your password"
-                        {...register("password", {
-                          required: "Password is required",
-                          minLength: {
-                            value: 6,
-                            message: "Password must be at least 6 characters",
-                          },
-                        })}
-                        disabled={isLoading || isSubmitting}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary border-start-0"
-                        onClick={togglePasswordVisibility}
-                        disabled={isLoading || isSubmitting}
-                      >
-                        <i
-                          className={`bi ${
-                            showPassword ? "bi-eye-slash" : "bi-eye"
-                          }`}
-                        ></i>
-                      </button>
-                      {errors.password && (
-                        <div className="invalid-feedback">
-                          {errors.password.message}
-                        </div>
-                      )}
-                    </div>
+
+                    <input
+                      type="password"
+                      className={`form-control ${
+                        errors.password ? "is-invalid" : ""
+                      }`}
+                      id="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="Enter your password"
+                      disabled={isLoading}
+                    />
+                    {errors.password && (
+                      <div className="invalid-feedback">{errors.password}</div>
+                    )}
                   </div>
 
-                  {/* Remember Me & Forgot Password */}
-                  <div className="d-flex justify-content-between align-items-center mb-4">
-                    <div className="form-check">
-                      <input
-                        type="checkbox"
-                        className="form-check-input"
-                        id="remember"
-                        {...register("remember")}
-                        disabled={isLoading || isSubmitting}
-                      />
-                      <label
-                        className="form-check-label text-muted"
-                        htmlFor="remember"
-                      >
-                        Remember me
-                      </label>
-                    </div>
-                    <Link
-                      to="/forgot-password"
-                      className="text-decoration-none small"
-                      tabIndex={isLoading || isSubmitting ? -1 : 0}
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-
-                  {/* Submit Button */}
                   <button
                     type="submit"
-                    className="btn btn-primary w-100 py-2 fw-semibold"
-                    disabled={isLoading || isSubmitting}
+                    className="btn btn-primary w-100 mb-3"
+                    disabled={isLoading}
                   >
-                    {isLoading || isSubmitting ? (
+                    {isLoading ? (
                       <>
-                        <ButtonLoading />
-                        Signing in...
+                        <span
+                          className="spinner-border spinner-border-sm me-2"
+                          role="status"
+                          aria-hidden="true"
+                        ></span>
+                        Signing In...
                       </>
                     ) : (
                       "Sign In"
@@ -239,27 +183,26 @@ const Login = () => {
                   </button>
                 </form>
 
-                {/* Register Link */}
-                <div className="text-center mt-4">
-                  <p className="text-muted mb-0">
+                <div className="text-center">
+                  <p className="mb-0">
                     Don't have an account?{" "}
-                    <Link
-                      to={ROUTES.REGISTER}
-                      className="text-decoration-none fw-semibold"
-                      tabIndex={isLoading || isSubmitting ? -1 : 0}
-                    >
+                    <Link to="/register" className="text-decoration-none">
                       Sign up here
                     </Link>
                   </p>
                 </div>
-              </div>
-            </div>
 
-            {/* Footer */}
-            <div className="text-center mt-4">
-              <small className="text-muted">
-                © 2024 Dexa Group. All rights reserved.
-              </small>
+                {/* Admin Test Credentials */}
+                <div className="mt-4 p-3 bg-light rounded">
+                  <small className="text-muted">
+                    <strong>Test Credentials:</strong>
+                    <br />
+                    Admin: admin@superadmin.com / password
+                    <br />
+                    Employee: john.doe@example.com / SecurePassword123!
+                  </small>
+                </div>
+              </div>
             </div>
           </div>
         </div>

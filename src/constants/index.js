@@ -1,23 +1,47 @@
 // API Routes
-export const API_ROUTES = {
-  // Auth routes
-  LOGIN: '/auth/login',
-  REGISTER: '/auth/register',
-  LOGOUT: '/auth/logout',
-  PROFILE: '/auth/profile',
+export const API_ENDPOINTS = {
+  // Auth endpoints
+  AUTH: {
+    LOGIN: '/auth/login',
+    REGISTER: '/auth/register',
+    PROFILE: '/auth/profile',
+    LOGOUT: '/auth/logout',
+    EMPLOYEES: '/auth/employees', // For admin to manage employees
+  },
 
-  // Attendance routes
-  CHECK_IN: '/attendance/check-in',
-  CHECK_OUT: '/attendance/check-out',
-  ATTENDANCE_RECORDS: '/attendance/my-records',
-  DAILY_SUMMARY: '/attendance/summary/daily',
-  MONTHLY_STATS: '/attendance/stats/monthly',
+  // Admin endpoints
+  ADMIN: {
+    EMPLOYEES: '/admin/employees',
+    ATTENDANCE_ALL: '/admin/attendance',
+    ATTENDANCE_STATS: '/admin/attendance/stats',
+    DASHBOARD: '/admin/dashboard',
+    STATS: '/admin/stats'
+  },
+
+  // Employee endpoints
+  ATTENDANCE: {
+    CHECK_IN: '/attendance/check-in',
+    CHECK_OUT: '/attendance/check-out',
+    MY_RECORDS: '/attendance/my-records',
+    DAILY_SUMMARY: '/attendance/summary/daily',
+    MONTHLY_STATS: '/attendance/stats/monthly',
+    ALL: '/attendance/all', // For admin view
+    EMPLOYEE: '/attendance/employee', // For specific employee
+    STATS: '/attendance/stats'
+  },
 
   // Profile change logs
-  PROFILE_LOGS: '/profile-change-logs',
+  PROFILE_LOGS: {
+    ALL: '/profile-change-logs',
+    BY_EMPLOYEE: '/profile-change-logs/employee'
+  },
 
   // Notifications
-  NOTIFICATIONS: '/api/notifications',
+  NOTIFICATIONS: {
+    ALL: '/api/notifications',
+    UNREAD: '/api/notifications/unread',
+    MARK_READ: '/api/notifications'
+  }
 };
 
 // App Routes
@@ -30,11 +54,20 @@ export const ROUTES = {
   ATTENDANCE: '/attendance',
   REPORTS: '/reports',
   SETTINGS: '/settings',
+
+  // Admin routes
+  ADMIN: {
+    DASHBOARD: '/admin',
+    EMPLOYEES: '/admin/employees',
+    ATTENDANCE: '/admin/attendance',
+    REPORTS: '/admin/reports',
+    SETTINGS: '/admin/settings',
+  }
 };
 
 // Storage Keys
 export const STORAGE_KEYS = {
-  AUTH_TOKEN: 'auth_token', // Changed from 'authToken' to match your localStorage
+  AUTH_TOKEN: 'auth_token',
   USER_DATA: 'user_data',
 };
 
@@ -98,30 +131,20 @@ export const ERROR_MESSAGES = {
   SERVER_ERROR: 'Internal server error. Please try again later.',
   VALIDATION_ERROR: 'Please check your input and try again.',
   SESSION_EXPIRED: 'Your session has expired. Please login again.',
-  ALREADY_CHECKED_IN: 'You have already checked in today.',
-  ALREADY_CHECKED_OUT: 'You have already checked out today.',
-  MUST_CHECK_IN_FIRST: 'You must check in before checking out.',
-  INVALID_CREDENTIALS: 'Invalid email or password.',
-  EMAIL_ALREADY_EXISTS: 'An account with this email already exists.',
-  WEAK_PASSWORD: 'Password must be at least 8 characters with uppercase, lowercase, number and special character.',
-  REQUIRED_FIELD: 'This field is required.',
-  INVALID_EMAIL: 'Please enter a valid email address.',
-  PASSWORDS_DONT_MATCH: 'Passwords do not match.',
-  INVALID_PHONE: 'Please enter a valid phone number.',
+  ADMIN_REQUIRED: 'Admin access required.',
+  EMPLOYEE_NOT_FOUND: 'Employee not found.',
+  ATTENDANCE_NOT_FOUND: 'Attendance record not found.',
 };
 
 // Success Messages
 export const SUCCESS_MESSAGES = {
   LOGIN_SUCCESS: 'Welcome back!',
+  ADMIN_LOGIN_SUCCESS: 'Welcome back, Admin!',
   LOGOUT_SUCCESS: 'Logged out successfully!',
-  REGISTER_SUCCESS: 'Registration successful! Please sign in.',
-  PROFILE_UPDATED: 'Profile updated successfully!',
-  CHECK_IN_SUCCESS: 'Checked in successfully!',
-  CHECK_OUT_SUCCESS: 'Checked out successfully!',
-  DATA_SAVED: 'Data saved successfully!',
-  DATA_DELETED: 'Data deleted successfully!',
-  EMAIL_SENT: 'Email sent successfully!',
-  PASSWORD_CHANGED: 'Password changed successfully!',
+  EMPLOYEE_ADDED: 'Employee added successfully!',
+  EMPLOYEE_UPDATED: 'Employee updated successfully!',
+  EMPLOYEE_DELETED: 'Employee deleted successfully!',
+  DATA_EXPORTED: 'Data exported successfully!',
 };
 
 // Loading Messages
@@ -268,7 +291,7 @@ export const PERFORMANCE = {
 
 // Export all constants as default
 export default {
-  API_ROUTES,
+  API_ENDPOINTS,
   ROUTES,
   STORAGE_KEYS,
   APP_CONFIG,
